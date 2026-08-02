@@ -1,0 +1,5792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#07070e"/>
+  <title>Real Life Game</title>
+  <link rel="manifest" href="manifest.json"/>
+  <style>*{box-sizing:border-box;margin:0;padding:0}html,body,#root{height:100%;background:#07070e}</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script>
+    const {useState,useEffect,useRef}=React;
+    window.storage={
+      get:async(key)=>{const v=localStorage.getItem('rlg_'+key);if(v===null)throw new Error('not found');return{key,value:v};},
+      set:async(key,value)=>{localStorage.setItem('rlg_'+key,String(value));return{key,value};},
+      delete:async(key)=>{localStorage.removeItem('rlg_'+key);return{key,deleted:true};},
+      list:async(prefix)=>{const keys=Object.keys(localStorage).filter(k=>k.startsWith('rlg_'+(prefix||''))).map(k=>k.replace('rlg_','')); return{keys};}
+    };
+  </script>
+  <script>
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+
+const STATS = {
+  strength: {
+    label: "Strength",
+    emoji: "⚔️",
+    color: "#F87171",
+    base: 4.0
+  },
+  intelligence: {
+    label: "Intelligence",
+    emoji: "📚",
+    color: "#93C5FD",
+    base: 3.0
+  },
+  endurance: {
+    label: "Endurance",
+    emoji: "🌙",
+    color: "#6EE7B7",
+    base: 3.0
+  },
+  mind: {
+    label: "Mind",
+    emoji: "🧠",
+    color: "#C4B5FD",
+    base: 4.0
+  },
+  vitality: {
+    label: "Vitality",
+    emoji: "🥗",
+    color: "#FCD34D",
+    base: 5.0
+  },
+  social: {
+    label: "Social",
+    emoji: "🤝",
+    color: "#FDA4AF",
+    base: 3.0
+  },
+  creativity: {
+    label: "Creativity",
+    emoji: "🎨",
+    color: "#F9A8D4",
+    base: 2.0
+  }
+};
+
+// ── Habit pools per period ──
+const CORE_HABITS = {
+  morning: [{
+    id: "sh_teeth_am",
+    name: "Brush teeth",
+    stat: "vitality",
+    emoji: "🦷"
+  }, {
+    id: "sh_water",
+    name: "Drink 2L of water",
+    stat: "vitality",
+    emoji: "💧"
+  }, {
+    id: "sh_noporn",
+    name: "No porn today",
+    stat: "mind",
+    emoji: "🚫"
+  }],
+  afternoon: [{
+    id: "sh_nojunk",
+    name: "No junk food",
+    stat: "vitality",
+    emoji: "🍔"
+  }],
+  evening: [{
+    id: "sh_teeth_pm",
+    name: "Brush teeth (night)",
+    stat: "vitality",
+    emoji: "🦷"
+  }, {
+    id: "sh_sleep",
+    name: "Sleep before midnight",
+    stat: "endurance",
+    emoji: "😴"
+  }]
+};
+const HABIT_POOL = {
+  morning: [{
+    id: "sh_cold",
+    name: "Cold shower",
+    stat: "endurance",
+    emoji: "🚿"
+  }, {
+    id: "sh_stretch",
+    name: "Stretch for 10 mins",
+    stat: "strength",
+    emoji: "🧘"
+  }, {
+    id: "sh_meditate",
+    name: "Meditate 5 mins",
+    stat: "mind",
+    emoji: "🧠"
+  }, {
+    id: "sh_grateful",
+    name: "Write 1 thing grateful",
+    stat: "mind",
+    emoji: "🙏"
+  }, {
+    id: "sh_vitamin",
+    name: "Take vitamins",
+    stat: "vitality",
+    emoji: "💊"
+  }, {
+    id: "sh_noscroll",
+    name: "No doomscrolling",
+    stat: "mind",
+    emoji: "📱"
+  }, {
+    id: "sh_breath",
+    name: "Deep breathing 5 mins",
+    stat: "mind",
+    emoji: "🌬️"
+  }, {
+    id: "sh_noalcohol",
+    name: "No alcohol today",
+    stat: "vitality",
+    emoji: "🍺"
+  }, {
+    id: "sh_sunlight",
+    name: "Get morning sunlight",
+    stat: "vitality",
+    emoji: "☀️"
+  }, {
+    id: "sh_makbed",
+    name: "Make your bed",
+    stat: "mind",
+    emoji: "🛏️"
+  }],
+  afternoon: [{
+    id: "sh_exercise",
+    name: "Work out 30 mins",
+    stat: "strength",
+    emoji: "🏃"
+  }, {
+    id: "sh_veg",
+    name: "Eat vegetables",
+    stat: "vitality",
+    emoji: "🥦"
+  }, {
+    id: "sh_pushups",
+    name: "Do 20 push-ups",
+    stat: "strength",
+    emoji: "💪"
+  }, {
+    id: "sh_walk",
+    name: "Walk 20 mins outside",
+    stat: "strength",
+    emoji: "🚶"
+  }, {
+    id: "sh_protein",
+    name: "Hit protein goal",
+    stat: "vitality",
+    emoji: "🥩"
+  }, {
+    id: "sh_study",
+    name: "Study for 30 mins",
+    stat: "intelligence",
+    emoji: "📚"
+  }, {
+    id: "sh_read",
+    name: "Read or learn something",
+    stat: "intelligence",
+    emoji: "📖"
+  }, {
+    id: "sh_social",
+    name: "Reach out to someone",
+    stat: "social",
+    emoji: "💬"
+  }, {
+    id: "sh_posture",
+    name: "Fix your posture",
+    stat: "vitality",
+    emoji: "🪑"
+  }, {
+    id: "sh_compliment",
+    name: "Compliment someone",
+    stat: "social",
+    emoji: "😊"
+  }, {
+    id: "sh_water2",
+    name: "Drink water with lunch",
+    stat: "vitality",
+    emoji: "💧"
+  }, {
+    id: "sh_nosnack",
+    name: "No mindless snacking",
+    stat: "vitality",
+    emoji: "🍪"
+  }],
+  evening: [{
+    id: "sh_journal",
+    name: "Journal or reflect",
+    stat: "mind",
+    emoji: "📝"
+  }, {
+    id: "sh_noscreen",
+    name: "No screens 1hr before bed",
+    stat: "endurance",
+    emoji: "📵"
+  }, {
+    id: "sh_plan",
+    name: "Plan tomorrow tonight",
+    stat: "intelligence",
+    emoji: "📋"
+  }, {
+    id: "sh_creative",
+    name: "Do something creative",
+    stat: "creativity",
+    emoji: "🎨"
+  }, {
+    id: "sh_tidy",
+    name: "Tidy your space",
+    stat: "mind",
+    emoji: "🧹"
+  }, {
+    id: "sh_review",
+    name: "Review your day",
+    stat: "intelligence",
+    emoji: "🔍"
+  }, {
+    id: "sh_reading",
+    name: "Read before bed",
+    stat: "intelligence",
+    emoji: "📖"
+  }, {
+    id: "sh_nophone",
+    name: "Phone off by 10pm",
+    stat: "endurance",
+    emoji: "📵"
+  }]
+};
+function seededRandom(seed) {
+  let s = seed;
+  return () => {
+    s = s * 1664525 + 1013904223 & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+}
+function getDailyHabits(aiHabits = []) {
+  const dateStr = today();
+  const seed = dateStr.split('-').reduce((acc, n) => acc + parseInt(n), 0) * 31337;
+  const rng = seededRandom(seed);
+  function shuffled(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  const result = [];
+  ['morning', 'afternoon', 'evening'].forEach(period => {
+    const core = [...(CORE_HABITS[period] || [])];
+    const pool = shuffled([...(HABIT_POOL[period] || [])]);
+    // Always 4 per period: core first, fill rest from pool
+    const needed = Math.max(0, 4 - core.length);
+    const picked = pool.slice(0, needed);
+    result.push(...core.map(h => ({
+      ...h,
+      period
+    })), ...picked.map(h => ({
+      ...h,
+      period
+    })));
+  });
+
+  // Sprinkle in AI habits if provided
+  const aiFormatted = (aiHabits || []).slice(0, 2).map((h, i) => ({
+    id: `sh_ai_${dateStr}_${i}`,
+    name: h.name || "Daily challenge",
+    stat: h.stat || "mind",
+    emoji: h.emoji || "⚡",
+    period: h.period || "afternoon"
+  }));
+  result.push(...aiFormatted);
+  return result;
+}
+let SYSTEM_HABITS = getDailyHabits([]);
+const PERIODS = ["morning", "afternoon", "evening"];
+const PERIOD_LABELS = {
+  morning: "🌅 Morning",
+  afternoon: "☀️ Afternoon",
+  evening: "🌙 Evening"
+};
+const ACHIEVEMENTS_DATA = [
+// From PDF - Fitness
+{
+  id: "a1",
+  title: "Push-Up No Jutsu",
+  desc: "Do 30 push-ups in a row",
+  tier: "common",
+  stat: "strength",
+  xp: 50
+}, {
+  id: "a2",
+  title: "Now Featuring Extra Gravity",
+  desc: "Do 60 push-ups in a row",
+  tier: "rare",
+  stat: "strength",
+  xp: 100
+}, {
+  id: "a3",
+  title: "The Floor is My Eternal Rival",
+  desc: "Do 100 push-ups in a row",
+  tier: "epic",
+  stat: "strength",
+  xp: 200
+}, {
+  id: "a4",
+  title: "Beginner's Boulder Lifter",
+  desc: "Lift 30kg",
+  tier: "common",
+  stat: "strength",
+  xp: 50
+}, {
+  id: "a5",
+  title: "Now We're Getting Somewhere",
+  desc: "Lift 60kg",
+  tier: "rare",
+  stat: "strength",
+  xp: 100
+}, {
+  id: "a6",
+  title: "Fat Margareta Would Approve",
+  desc: "Lift 100kg",
+  tier: "epic",
+  stat: "strength",
+  xp: 200
+}, {
+  id: "a7",
+  title: "Sweatborne I",
+  desc: "Train your body for a whole month",
+  tier: "common",
+  stat: "strength",
+  xp: 75
+}, {
+  id: "a8",
+  title: "Sweatborne II",
+  desc: "Train your body for 6 months",
+  tier: "rare",
+  stat: "strength",
+  xp: 150
+}, {
+  id: "a9",
+  title: "Sweatborne Veteran",
+  desc: "Keep a workout schedule for a year",
+  tier: "legendary",
+  stat: "strength",
+  xp: 500
+}, {
+  id: "a10",
+  title: "What the Hell is a Six-Beer?",
+  desc: "Get a six-pack",
+  tier: "epic",
+  stat: "strength",
+  xp: 300
+},
+// Discipline / Mind
+{
+  id: "a11",
+  title: "No More Cheap Dopamine",
+  desc: "Be porn-free for 30 days",
+  tier: "rare",
+  stat: "mind",
+  xp: 150
+}, {
+  id: "a12",
+  title: "No More Naked People",
+  desc: "Be porn-free for 90 days",
+  tier: "epic",
+  stat: "mind",
+  xp: 300
+}, {
+  id: "a13",
+  title: "Who needs porn anyway?",
+  desc: "Lost your porn addiction",
+  tier: "legendary",
+  stat: "mind",
+  xp: 500
+}, {
+  id: "a14",
+  title: "Going Monk Mode",
+  desc: "Meditate daily for 30 days",
+  tier: "rare",
+  stat: "mind",
+  xp: 150
+}, {
+  id: "a15",
+  title: "Feelings: Patched",
+  desc: "Handle a tough emotional situation with maturity",
+  tier: "rare",
+  stat: "mind",
+  xp: 100
+}, {
+  id: "a16",
+  title: "Phone-Free Monk",
+  desc: "Go 24h without screens",
+  tier: "rare",
+  stat: "mind",
+  xp: 120
+}, {
+  id: "a17",
+  title: "Emotional Black Belt",
+  desc: "Avoid texting someone when angry",
+  tier: "common",
+  stat: "mind",
+  xp: 50
+}, {
+  id: "a18",
+  title: "Focus Mode Engaged",
+  desc: "Work 2 hours without touching your phone",
+  tier: "common",
+  stat: "mind",
+  xp: 50
+}, {
+  id: "a19",
+  title: "Mental Gymnastics",
+  desc: "Change your opinion after learning new info",
+  tier: "common",
+  stat: "mind",
+  xp: 40
+},
+// Military / Life
+{
+  id: "a20",
+  title: "Full Metal Civilian",
+  desc: "Survived the Military Experience",
+  tier: "legendary",
+  stat: "endurance",
+  xp: 500
+}, {
+  id: "a21",
+  title: "Boss Fight: Alarm Clock",
+  desc: "Get up instantly without hitting snooze",
+  tier: "common",
+  stat: "endurance",
+  xp: 40
+}, {
+  id: "a22",
+  title: "CEO of Existing",
+  desc: "Wake up before 8 AM without alarm",
+  tier: "common",
+  stat: "endurance",
+  xp: 50
+}, {
+  id: "a23",
+  title: "Persona 5 AM Wake-Up Club",
+  desc: "Wake up before 5 AM for no reason",
+  tier: "rare",
+  stat: "endurance",
+  xp: 100
+}, {
+  id: "a24",
+  title: "Self-Care Side Quest",
+  desc: "Take a whole day off just for yourself",
+  tier: "common",
+  stat: "endurance",
+  xp: 50
+},
+// Learning / Intelligence
+{
+  id: "a25",
+  title: "Loading New Skill Tree",
+  desc: "Learn a completely new skill outside school",
+  tier: "common",
+  stat: "intelligence",
+  xp: 75
+}, {
+  id: "a26",
+  title: "The Jack-Of-All-Stats",
+  desc: "Learn multiple new skills",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 150
+}, {
+  id: "a27",
+  title: "Coding Gremlin",
+  desc: "Build your first app, bot, or script",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 200
+}, {
+  id: "a28",
+  title: "Someone Order a Third Language?",
+  desc: "Reach A2/B1 in a new language",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 300
+}, {
+  id: "a29",
+  title: "Professional Page Turner",
+  desc: "Read 20 books",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 150
+}, {
+  id: "a30",
+  title: "Plot Twist Addict",
+  desc: "Read 50 books",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 300
+}, {
+  id: "a31",
+  title: "The Walking Encyclopaedia",
+  desc: "Read 100 books",
+  tier: "legendary",
+  stat: "intelligence",
+  xp: 500
+}, {
+  id: "a32",
+  title: "Putting the Grind On!",
+  desc: "Study or work consistently for 30 days",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 150
+},
+// Social
+{
+  id: "a33",
+  title: "One-Man Raid",
+  desc: "Go to a social event alone",
+  tier: "common",
+  stat: "social",
+  xp: 75
+}, {
+  id: "a34",
+  title: "Awkwardness +100",
+  desc: "Survive a room full of strangers",
+  tier: "common",
+  stat: "social",
+  xp: 50
+}, {
+  id: "a35",
+  title: "Friendship Speedrun",
+  desc: "Make a new friend in under 5 minutes",
+  tier: "rare",
+  stat: "social",
+  xp: 100
+}, {
+  id: "a36",
+  title: "The Reunion Arc",
+  desc: "Reconnect with someone you haven't talked to in years",
+  tier: "rare",
+  stat: "social",
+  xp: 100
+}, {
+  id: "a37",
+  title: "Crowd Whisperer",
+  desc: "Make a group laugh at the same time",
+  tier: "rare",
+  stat: "social",
+  xp: 100
+}, {
+  id: "a38",
+  title: "Polite Customer Any%",
+  desc: "Asked 10 servers/owners about their well-being",
+  tier: "common",
+  stat: "social",
+  xp: 50
+}, {
+  id: "a39",
+  title: "Friend of the House",
+  desc: "Asked 20 servers/owners about their well-being",
+  tier: "rare",
+  stat: "social",
+  xp: 100
+}, {
+  id: "a40",
+  title: "Neighbourhood Mayor",
+  desc: "Asked 30 servers/owners about their well-being",
+  tier: "epic",
+  stat: "social",
+  xp: 200
+},
+// Vitality / Life
+{
+  id: "a41",
+  title: "Thirst Quencher Max",
+  desc: "Drink 2L of water in a day without forgetting",
+  tier: "common",
+  stat: "vitality",
+  xp: 30
+}, {
+  id: "a42",
+  title: "Yeah, I Can Cook Something",
+  desc: "Cook 5 different meals from scratch",
+  tier: "common",
+  stat: "vitality",
+  xp: 50
+}, {
+  id: "a43",
+  title: "I Can Definitely Cook Something",
+  desc: "Cook 10+ different meals from scratch",
+  tier: "rare",
+  stat: "vitality",
+  xp: 100
+}, {
+  id: "a44",
+  title: "You May Call Me Master Chef",
+  desc: "Cook 25+ different meals from scratch",
+  tier: "epic",
+  stat: "vitality",
+  xp: 250
+}, {
+  id: "a45",
+  title: "Beast Mode Activated",
+  desc: "Carry all grocery bags in one trip",
+  tier: "common",
+  stat: "strength",
+  xp: 30
+}, {
+  id: "a46",
+  title: "Fresh-Faced Initiate",
+  desc: "Start a skin cleaning routine",
+  tier: "common",
+  stat: "vitality",
+  xp: 40
+}, {
+  id: "a47",
+  title: "Handsome Squidward",
+  desc: "Have a clean face",
+  tier: "rare",
+  stat: "vitality",
+  xp: 100
+},
+// Creativity / Adventure
+{
+  id: "a48",
+  title: "Art Attack",
+  desc: "Draw something that actually looks like the thing",
+  tier: "common",
+  stat: "creativity",
+  xp: 50
+}, {
+  id: "a49",
+  title: "Musical NPC",
+  desc: "Learn to play a full song on an instrument",
+  tier: "rare",
+  stat: "creativity",
+  xp: 150
+}, {
+  id: "a50",
+  title: "Fix-It Sensei",
+  desc: "Repair or build something with your hands",
+  tier: "rare",
+  stat: "creativity",
+  xp: 100
+},
+// Adventure
+{
+  id: "a51",
+  title: "Curious Local",
+  desc: "Visit other cities in Estonia",
+  tier: "common",
+  stat: "social",
+  xp: 50
+}, {
+  id: "a52",
+  title: "Experienced Local",
+  desc: "Visit all of Estonia",
+  tier: "rare",
+  stat: "social",
+  xp: 150
+}, {
+  id: "a53",
+  title: "Expanding My Map",
+  desc: "Visit a foreign country by yourself",
+  tier: "epic",
+  stat: "social",
+  xp: 250
+}, {
+  id: "a54",
+  title: "Budget Indiana Jones",
+  desc: "Ride a train to another city",
+  tier: "common",
+  stat: "social",
+  xp: 40
+}, {
+  id: "a55",
+  title: "Lost but Fabulous",
+  desc: "Get lost in a city and find your way back",
+  tier: "common",
+  stat: "mind",
+  xp: 50
+}, {
+  id: "a56",
+  title: "Swing It Like You Mean It",
+  desc: "Tried golfing",
+  tier: "common",
+  stat: "strength",
+  xp: 30
+},
+// Life admin
+{
+  id: "a57",
+  title: "Vroom Vroom Certified!",
+  desc: "Acquire a driver's license",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 150
+}, {
+  id: "a58",
+  title: "Car Goes Brrr",
+  desc: "Drive independently for the first time",
+  tier: "common",
+  stat: "intelligence",
+  xp: 75
+}, {
+  id: "a59",
+  title: "Quest Completed: Government Hell",
+  desc: "Handle official paperwork without help",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 100
+}, {
+  id: "a60",
+  title: "Key Item Obtained: Insurance",
+  desc: "Get insured without help",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 100
+}, {
+  id: "a61",
+  title: "Ah Shit, Here We Go Again!",
+  desc: "Went to University",
+  tier: "common",
+  stat: "intelligence",
+  xp: 50
+}, {
+  id: "a62",
+  title: "3 Years and All I Got Is a Useless Degree",
+  desc: "Finished University",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 300
+}, {
+  id: "a63",
+  title: "The New Game+ Arc",
+  desc: "Found a Job",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 300
+}, {
+  id: "a64",
+  title: "Money, Money, Money!!!",
+  desc: "Earn your first independent income",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 150
+}, {
+  id: "a65",
+  title: "The Raise Raid",
+  desc: "Negotiate for higher pay or benefits",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 200
+}, {
+  id: "a66",
+  title: "Budget Ninja",
+  desc: "Save money three months in a row",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 150
+},
+// Hidden / Rare
+{
+  id: "a67",
+  title: "Main Character Moment",
+  desc: "Gave away your first kiss",
+  tier: "legendary",
+  stat: "social",
+  xp: 300,
+  hidden: true
+}, {
+  id: "a68",
+  title: "Romance Route Unlocked",
+  desc: "Got a girlfriend",
+  tier: "legendary",
+  stat: "social",
+  xp: 500,
+  hidden: true
+}, {
+  id: "a69",
+  title: "Debuff Removed: Sadness",
+  desc: "No longer feel depressed",
+  tier: "legendary",
+  stat: "mind",
+  xp: 500,
+  hidden: true
+}, {
+  id: "a70",
+  title: "The True Final Boss",
+  desc: "Faced your laundry pile… and won",
+  tier: "epic",
+  stat: "endurance",
+  xp: 200,
+  hidden: true
+}, {
+  id: "a71",
+  title: "Solo Cinema Buff",
+  desc: "Watched a movie alone in a cinema",
+  tier: "common",
+  stat: "social",
+  xp: 75
+}, {
+  id: "a72",
+  title: "Café Crawl Casual",
+  desc: "Visit 5 unique local cafes",
+  tier: "common",
+  stat: "social",
+  xp: 50
+}, {
+  id: "a73",
+  title: "Fear? I Eat That for Breakfast",
+  desc: "Do something that genuinely scares you",
+  tier: "rare",
+  stat: "mind",
+  xp: 150
+}, {
+  id: "a74",
+  title: "I Exterminate Dirty Shit",
+  desc: "Handle home chores for 2+ weeks solo",
+  tier: "rare",
+  stat: "endurance",
+  xp: 100
+}, {
+  id: "a75",
+  title: "I Like Things Organized",
+  desc: "Organize your files, email, and passwords",
+  tier: "common",
+  stat: "intelligence",
+  xp: 50
+},
+// ── NEW: Daily Life ──
+{
+  id: "b1",
+  title: "Touched Grass Today",
+  desc: "Go outside for no reason at all.",
+  tier: "common",
+  stat: "vitality",
+  xp: 30
+}, {
+  id: "b2",
+  title: "The 7AM Protagonist",
+  desc: "Wake up at 7am, stare into the void, feel powerful.",
+  tier: "common",
+  stat: "endurance",
+  xp: 40
+}, {
+  id: "b3",
+  title: "Noodle Arms No More",
+  desc: "Open a jar on the first try.",
+  tier: "common",
+  stat: "strength",
+  xp: 25
+}, {
+  id: "b4",
+  title: "Hydration Station",
+  desc: "Drink water before coffee for an entire week.",
+  tier: "rare",
+  stat: "vitality",
+  xp: 80
+}, {
+  id: "b5",
+  title: "The Snooze Button Dies Here",
+  desc: "Disable all backup alarms for a week and survive.",
+  tier: "rare",
+  stat: "endurance",
+  xp: 100
+}, {
+  id: "b6",
+  title: "Side Quest: Dentist",
+  desc: "Go to the dentist without being dragged.",
+  tier: "common",
+  stat: "vitality",
+  xp: 50
+}, {
+  id: "b7",
+  title: "I Am the Main Character",
+  desc: "Walk somewhere with music and feel unstoppable.",
+  tier: "common",
+  stat: "mind",
+  xp: 20
+}, {
+  id: "b8",
+  title: "Laundry Lore Unlocked",
+  desc: "Do laundry before running out of clean clothes.",
+  tier: "common",
+  stat: "endurance",
+  xp: 30
+}, {
+  id: "b9",
+  title: "The Inbox Zero Myth",
+  desc: "Get your email inbox to zero unread messages.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 75
+}, {
+  id: "b10",
+  title: "Password Manager Arc",
+  desc: "Set up and actually use a password manager.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 80
+}, {
+  id: "b11",
+  title: "Adulting Speedrun",
+  desc: "Pay a bill, cook a meal, and clean up — all in one day.",
+  tier: "rare",
+  stat: "endurance",
+  xp: 100
+}, {
+  id: "b12",
+  title: "Sleep Schedule? In Estonia?",
+  desc: "Maintain a consistent sleep time for 2 weeks.",
+  tier: "rare",
+  stat: "endurance",
+  xp: 120
+},
+// ── Fitness Extra ──
+{
+  id: "b13",
+  title: "First Step of a Thousand",
+  desc: "Complete your very first run, however short.",
+  tier: "common",
+  stat: "strength",
+  xp: 40
+}, {
+  id: "b14",
+  title: "5K Enjoyer",
+  desc: "Run 5 kilometres without stopping.",
+  tier: "rare",
+  stat: "strength",
+  xp: 120
+}, {
+  id: "b15",
+  title: "10K Is Just 5K Twice",
+  desc: "Run 10 kilometres.",
+  tier: "epic",
+  stat: "strength",
+  xp: 250
+}, {
+  id: "b16",
+  title: "The Protein Lore",
+  desc: "Hit your protein goal for 7 days straight.",
+  tier: "rare",
+  stat: "vitality",
+  xp: 100
+}, {
+  id: "b17",
+  title: "Gym Anxiety? Never Met Her",
+  desc: "Go to the gym alone 10 times.",
+  tier: "rare",
+  stat: "strength",
+  xp: 100
+}, {
+  id: "b18",
+  title: "Calisthenics Arc Initiated",
+  desc: "Complete a full bodyweight workout with no equipment.",
+  tier: "common",
+  stat: "strength",
+  xp: 50
+}, {
+  id: "b19",
+  title: "Cold Shower Veteran",
+  desc: "Take cold showers every day for 30 days.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 200
+}, {
+  id: "b20",
+  title: "Morning Run Before Anyone Wakes",
+  desc: "Go for a run before 6am.",
+  tier: "rare",
+  stat: "strength",
+  xp: 100
+}, {
+  id: "b21",
+  title: "No Elevator Energy",
+  desc: "Take stairs instead of elevator for 30 days.",
+  tier: "rare",
+  stat: "strength",
+  xp: 80
+},
+// ── Intelligence ──
+{
+  id: "b22",
+  title: "Wikipedia Rabbit Hole Survivor",
+  desc: "Fall down a Wikipedia rabbit hole and learn something real.",
+  tier: "common",
+  stat: "intelligence",
+  xp: 30
+}, {
+  id: "b23",
+  title: "The Note-Taking Prophecy",
+  desc: "Fill an entire notebook.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 100
+}, {
+  id: "b24",
+  title: "First 100 Hours",
+  desc: "Practice any single skill for 100+ hours total.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 300
+}, {
+  id: "b25",
+  title: "Touch Typing Arc",
+  desc: "Learn to type without looking at the keyboard.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 120
+}, {
+  id: "b26",
+  title: "30-Day Language Streak",
+  desc: "Keep a language learning streak for 30 days.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 100
+}, {
+  id: "b27",
+  title: "The Podcast Philosopher",
+  desc: "Listen to 50 full podcast episodes.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 100
+}, {
+  id: "b28",
+  title: "Essay Mode Activated",
+  desc: "Write something over 1000 words just for yourself.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 100
+}, {
+  id: "b29",
+  title: "Speed Reader Wannabe",
+  desc: "Read a full book in under a week.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 120
+},
+// ── Mind ──
+{
+  id: "b30",
+  title: "The No-Complaint Day",
+  desc: "Go a full day without complaining about anything.",
+  tier: "rare",
+  stat: "mind",
+  xp: 80
+}, {
+  id: "b31",
+  title: "Dopamine Detox Attempted",
+  desc: "Spend a full day with no social media, games, or TV.",
+  tier: "rare",
+  stat: "mind",
+  xp: 100
+}, {
+  id: "b32",
+  title: "The Anger Management DLC",
+  desc: "Stay calm in a situation that would normally set you off.",
+  tier: "rare",
+  stat: "mind",
+  xp: 100
+}, {
+  id: "b33",
+  title: "Anxiety Boss Fight",
+  desc: "Do the thing you have been putting off because it scares you.",
+  tier: "epic",
+  stat: "mind",
+  xp: 200
+}, {
+  id: "b34",
+  title: "Overthinking: Patched",
+  desc: "Make a decision in under 5 minutes and don't regret it.",
+  tier: "common",
+  stat: "mind",
+  xp: 50
+}, {
+  id: "b35",
+  title: "No Negative Self-Talk Day",
+  desc: "Go a full day without putting yourself down internally.",
+  tier: "rare",
+  stat: "mind",
+  xp: 100
+}, {
+  id: "b36",
+  title: "Screen Time Under 2H",
+  desc: "Keep total screen time under 2 hours for a full day.",
+  tier: "rare",
+  stat: "mind",
+  xp: 120
+}, {
+  id: "b37",
+  title: "The Apology Arc",
+  desc: "Sincerely apologise to someone you genuinely wronged.",
+  tier: "rare",
+  stat: "mind",
+  xp: 100
+}, {
+  id: "b38",
+  title: "The Comfort Zone Memorial",
+  desc: "Do something completely outside your comfort zone.",
+  tier: "rare",
+  stat: "mind",
+  xp: 150
+},
+// ── Social ──
+{
+  id: "b39",
+  title: "The Icebreaker",
+  desc: "Introduce yourself to someone new at a social event.",
+  tier: "common",
+  stat: "social",
+  xp: 40
+}, {
+  id: "b40",
+  title: "The Wing Commander",
+  desc: "Help a friend through a genuinely difficult time.",
+  tier: "rare",
+  stat: "social",
+  xp: 120
+}, {
+  id: "b41",
+  title: "Party Mode Unlocked",
+  desc: "Stay at a social event past midnight.",
+  tier: "common",
+  stat: "social",
+  xp: 50
+}, {
+  id: "b42",
+  title: "Deep Conversation Achievement",
+  desc: "Have a conversation that lasts 2+ hours and feels short.",
+  tier: "rare",
+  stat: "social",
+  xp: 100
+}, {
+  id: "b43",
+  title: "The Roast Master",
+  desc: "Successfully roast a friend and have them laugh.",
+  tier: "common",
+  stat: "social",
+  xp: 30
+}, {
+  id: "b44",
+  title: "Chosen Family Arc",
+  desc: "Maintain a close friendship for over 3 years.",
+  tier: "epic",
+  stat: "social",
+  xp: 200
+}, {
+  id: "b45",
+  title: "Karaoke Courage",
+  desc: "Sing karaoke in front of people.",
+  tier: "rare",
+  stat: "social",
+  xp: 80
+}, {
+  id: "b46",
+  title: "Random Act of Kindness",
+  desc: "Do something genuinely kind for a stranger.",
+  tier: "common",
+  stat: "social",
+  xp: 50
+}, {
+  id: "b47",
+  title: "Group Activity Organiser",
+  desc: "Organise or plan an outing for 5 or more people.",
+  tier: "rare",
+  stat: "social",
+  xp: 100
+},
+// ── Creativity ──
+{
+  id: "b48",
+  title: "Blank Canvas Conquered",
+  desc: "Complete a creative project you started from zero.",
+  tier: "rare",
+  stat: "creativity",
+  xp: 120
+}, {
+  id: "b49",
+  title: "The Worldbuilder",
+  desc: "Write a short story with a beginning, middle, and end.",
+  tier: "rare",
+  stat: "creativity",
+  xp: 100
+}, {
+  id: "b50",
+  title: "Photography Arc",
+  desc: "Take 10 photos in one outing you're actually proud of.",
+  tier: "common",
+  stat: "creativity",
+  xp: 50
+}, {
+  id: "b51",
+  title: "The Recipe Creator",
+  desc: "Invent your own recipe and have someone enjoy it.",
+  tier: "rare",
+  stat: "creativity",
+  xp: 100
+}, {
+  id: "b52",
+  title: "Playlist Curator",
+  desc: "Make a playlist that perfectly fits a mood.",
+  tier: "common",
+  stat: "creativity",
+  xp: 30
+}, {
+  id: "b53",
+  title: "Interior Designer Era",
+  desc: "Redecorate your room or space significantly.",
+  tier: "rare",
+  stat: "creativity",
+  xp: 80
+}, {
+  id: "b54",
+  title: "DIY or Die Trying",
+  desc: "Build or repair something without any tutorials.",
+  tier: "rare",
+  stat: "creativity",
+  xp: 100
+}, {
+  id: "b55",
+  title: "Meme Architect",
+  desc: "Create a meme that gets genuinely shared.",
+  tier: "common",
+  stat: "creativity",
+  xp: 30
+},
+// ── Financial ──
+{
+  id: "b56",
+  title: "Emergency Fund Initiated",
+  desc: "Save your first 100 euros as an emergency fund.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 100
+}, {
+  id: "b57",
+  title: "Impulse Buy Resisted",
+  desc: "Put something back on the shelf you really wanted.",
+  tier: "common",
+  stat: "mind",
+  xp: 40
+}, {
+  id: "b58",
+  title: "The Frugal Arc",
+  desc: "Go a full month under your planned budget.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 120
+}, {
+  id: "b59",
+  title: "Investment Arc Initiated",
+  desc: "Invest money for the first time, however small.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 200
+},
+// ── Epic Life ──
+{
+  id: "b60",
+  title: "The Protagonist Moment",
+  desc: "Do something you will tell people about in 10 years.",
+  tier: "epic",
+  stat: "mind",
+  xp: 300
+}, {
+  id: "b61",
+  title: "Midnight Epiphany",
+  desc: "Have a genuine realisation about yourself at 2am.",
+  tier: "rare",
+  stat: "mind",
+  xp: 80
+}, {
+  id: "b62",
+  title: "The Glow-Up Arc",
+  desc: "Look at an old photo and notice genuine improvement.",
+  tier: "epic",
+  stat: "vitality",
+  xp: 200
+}, {
+  id: "b63",
+  title: "Letter to Your Past Self",
+  desc: "Write a letter to yourself from 5 years ago.",
+  tier: "rare",
+  stat: "mind",
+  xp: 100
+}, {
+  id: "b64",
+  title: "The Sunrise Witness",
+  desc: "Watch a full sunrise from start to finish.",
+  tier: "common",
+  stat: "mind",
+  xp: 40
+}, {
+  id: "b65",
+  title: "Stargazing DLC",
+  desc: "Spend 30 minutes just looking at stars.",
+  tier: "common",
+  stat: "mind",
+  xp: 30
+}, {
+  id: "b66",
+  title: "Passport Acquired",
+  desc: "Get your first passport.",
+  tier: "common",
+  stat: "social",
+  xp: 50
+}, {
+  id: "b67",
+  title: "The New Year Resolution That Stuck",
+  desc: "Maintain a habit for a full year.",
+  tier: "legendary",
+  stat: "endurance",
+  xp: 500
+},
+// ── Legendary ──
+{
+  id: "b68",
+  title: "The Self-Made Arc",
+  desc: "Achieve something significant entirely through your own effort.",
+  tier: "legendary",
+  stat: "intelligence",
+  xp: 500
+}, {
+  id: "b69",
+  title: "One Year of Journaling",
+  desc: "Journal consistently for a full year.",
+  tier: "legendary",
+  stat: "mind",
+  xp: 500
+}, {
+  id: "b70",
+  title: "The Transformation Arc",
+  desc: "Look back and genuinely not recognise who you used to be.",
+  tier: "legendary",
+  stat: "mind",
+  xp: 500
+},
+// ── Military ──
+{
+  id: "b71",
+  title: "Ajateenistus Initiated",
+  desc: "Report for duty on Day 1.",
+  tier: "common",
+  stat: "endurance",
+  xp: 50
+}, {
+  id: "b72",
+  title: "5AM Wake-Up Becomes Normal",
+  desc: "Stop dreading early reveille entirely.",
+  tier: "rare",
+  stat: "endurance",
+  xp: 100
+}, {
+  id: "b73",
+  title: "Survived Kevadtorm",
+  desc: "Complete a major military exercise.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 300
+}, {
+  id: "b74",
+  title: "I Know How to Iron Now",
+  desc: "Iron a uniform so well you are actually proud of it.",
+  tier: "common",
+  stat: "endurance",
+  xp: 30
+}, {
+  id: "b75",
+  title: "Military Cuisine Connoisseur",
+  desc: "Find something genuinely good about army food.",
+  tier: "common",
+  stat: "vitality",
+  xp: 20
+}, {
+  id: "b76",
+  title: "The Night Watch",
+  desc: "Complete a full night guard shift without falling asleep.",
+  tier: "rare",
+  stat: "endurance",
+  xp: 100
+}, {
+  id: "b77",
+  title: "Rank Up IRL",
+  desc: "Receive a military promotion or commendation.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 250
+},
+// ── Tech / IT ──
+{
+  id: "b78",
+  title: "First Pull Request",
+  desc: "Submit code that gets merged.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 150
+}, {
+  id: "b79",
+  title: "The Stack Overflow Savant",
+  desc: "Find a solution to a bug that took over 2 hours.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 100
+}, {
+  id: "b80",
+  title: "IT Hero",
+  desc: "Fix a tech problem no one else could solve.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 100
+}, {
+  id: "b81",
+  title: "Terminal Unlocked",
+  desc: "Do something genuinely useful entirely in the command line.",
+  tier: "rare",
+  stat: "intelligence",
+  xp: 100
+}, {
+  id: "b82",
+  title: "The Automation Arc",
+  desc: "Write a script that saves you real time every week.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 200
+}, {
+  id: "b83",
+  title: "App in the Wild",
+  desc: "Release something you built to at least one real user.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 300
+}, {
+  id: "b84",
+  title: "WiFi Whisperer",
+  desc: "Fix a network issue that was driving everyone insane.",
+  tier: "common",
+  stat: "intelligence",
+  xp: 50
+},
+// ── Hidden ──
+{
+  id: "b85",
+  title: "Carried Someone Through It",
+  desc: "Be the reason someone did not give up.",
+  tier: "legendary",
+  stat: "social",
+  xp: 500,
+  hidden: true
+}, {
+  id: "b86",
+  title: "The 3AM Philosopher",
+  desc: "Have a profound thought at 3am and actually write it down.",
+  tier: "rare",
+  stat: "mind",
+  xp: 80,
+  hidden: true
+}, {
+  id: "b87",
+  title: "NPC Escaped",
+  desc: "Realise you have been living on autopilot and change it.",
+  tier: "epic",
+  stat: "mind",
+  xp: 250,
+  hidden: true
+}, {
+  id: "b88",
+  title: "Secret Boss Defeated",
+  desc: "Overcome something you never told anyone about.",
+  tier: "legendary",
+  stat: "mind",
+  xp: 500,
+  hidden: true
+}, {
+  id: "b89",
+  title: "Villain Arc Avoided",
+  desc: "Choose not to be the bad guy when you easily could have.",
+  tier: "epic",
+  stat: "mind",
+  xp: 250,
+  hidden: true
+}, {
+  id: "b90",
+  title: "The Lore Keeper",
+  desc: "Keep a personal journal for over 6 months.",
+  tier: "epic",
+  stat: "mind",
+  xp: 200
+},
+// ── EPIC BATCH 2: Hard Personal Challenges ──
+{
+  id: "c1",
+  title: "The Villain Was Me All Along",
+  desc: "Genuinely reflect on a situation where you were wrong and change.",
+  tier: "epic",
+  stat: "mind",
+  xp: 250
+}, {
+  id: "c2",
+  title: "Fear Final Boss",
+  desc: "Face your single biggest fear head-on.",
+  tier: "epic",
+  stat: "mind",
+  xp: 300
+}, {
+  id: "c3",
+  title: "The Silent Month",
+  desc: "Go 30 days without complaining to anyone about anything.",
+  tier: "epic",
+  stat: "mind",
+  xp: 280
+}, {
+  id: "c4",
+  title: "No Excuses Speedrun",
+  desc: "Complete every task on your to-do list for 7 days straight.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 250
+}, {
+  id: "c5",
+  title: "Monk Mode: Activated",
+  desc: "30 days of no alcohol, no junk food, and daily exercise.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 350
+}, {
+  id: "c6",
+  title: "The Discipline Arc",
+  desc: "Wake up at the same time every day for 60 days.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 300
+}, {
+  id: "c7",
+  title: "100 Days of Something",
+  desc: "Do any single habit every day for 100 days straight.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 400
+}, {
+  id: "c8",
+  title: "The Hard Conversation",
+  desc: "Have a conversation you have been avoiding for months.",
+  tier: "epic",
+  stat: "social",
+  xp: 250
+}, {
+  id: "c9",
+  title: "Comfort is the Enemy",
+  desc: "Spend 30 days deliberately doing uncomfortable things daily.",
+  tier: "epic",
+  stat: "mind",
+  xp: 300
+}, {
+  id: "c10",
+  title: "The Digital Hermit",
+  desc: "Go one full week with zero social media.",
+  tier: "epic",
+  stat: "mind",
+  xp: 250
+}, {
+  id: "c11",
+  title: "Iron Will",
+  desc: "Resist a major temptation for an entire month.",
+  tier: "epic",
+  stat: "mind",
+  xp: 280
+}, {
+  id: "c12",
+  title: "The Patience Quest",
+  desc: "Wait for something important without rushing or complaining.",
+  tier: "epic",
+  stat: "mind",
+  xp: 200
+}, {
+  id: "c13",
+  title: "Ego Death Speedrun",
+  desc: "Ask for help with something you would normally struggle through alone.",
+  tier: "epic",
+  stat: "social",
+  xp: 200
+}, {
+  id: "c14",
+  title: "The Accountability Arc",
+  desc: "Admit a mistake publicly and make it right.",
+  tier: "epic",
+  stat: "social",
+  xp: 250
+}, {
+  id: "c15",
+  title: "Pain Tolerance +99",
+  desc: "Complete a physically gruelling challenge you almost quit.",
+  tier: "epic",
+  stat: "strength",
+  xp: 300
+}, {
+  id: "c16",
+  title: "Sleep is for the Disciplined",
+  desc: "Maintain a perfect sleep schedule for 30 consecutive days.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 280
+}, {
+  id: "c17",
+  title: "The Reading Marathon",
+  desc: "Read for 4+ hours in a single day.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 200
+}, {
+  id: "c18",
+  title: "Zero Skip November",
+  desc: "Complete all daily habits every day for an entire month.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 400
+}, {
+  id: "c19",
+  title: "The Anger Burial",
+  desc: "Let go of a long-held grudge completely.",
+  tier: "epic",
+  stat: "mind",
+  xp: 300
+}, {
+  id: "c20",
+  title: "Ultralearning Arc",
+  desc: "Intensively self-teach a skill to competency in under 3 months.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 350
+},
+// ── EPIC: Life Milestones ──
+{
+  id: "c21",
+  title: "First Place You Called Home",
+  desc: "Live alone or with roommates fully independently for the first time.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 250
+}, {
+  id: "c22",
+  title: "The Moving Arc",
+  desc: "Successfully move to a new city or country on your own.",
+  tier: "epic",
+  stat: "social",
+  xp: 300
+}, {
+  id: "c23",
+  title: "The Resume Arc",
+  desc: "Write a resume that actually gets you an interview.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 200
+}, {
+  id: "c24",
+  title: "Interview Boss Defeated",
+  desc: "Nail a job interview you were nervous about.",
+  tier: "epic",
+  stat: "social",
+  xp: 250
+}, {
+  id: "c25",
+  title: "First Performance Review",
+  desc: "Receive positive feedback from a manager or supervisor.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 200
+}, {
+  id: "c26",
+  title: "The Mentor Arc",
+  desc: "Teach someone a skill you worked hard to learn.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 250
+}, {
+  id: "c27",
+  title: "Published to the World",
+  desc: "Put something you created online for the world to see.",
+  tier: "epic",
+  stat: "creativity",
+  xp: 300
+}, {
+  id: "c28",
+  title: "The Networking Arc",
+  desc: "Build a genuine professional connection that leads somewhere.",
+  tier: "epic",
+  stat: "social",
+  xp: 250
+}, {
+  id: "c29",
+  title: "Side Hustle Initiated",
+  desc: "Make money from something you built or created yourself.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 300
+}, {
+  id: "c30",
+  title: "First Big Purchase",
+  desc: "Save up for and buy something significant entirely on your own.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 250
+}, {
+  id: "c31",
+  title: "Tax Season: Survived",
+  desc: "File your own taxes correctly without panicking.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 200
+}, {
+  id: "c32",
+  title: "The Lease Arc",
+  desc: "Sign your own lease without a parent co-signing.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 250
+}, {
+  id: "c33",
+  title: "International Arc",
+  desc: "Travel to 3 different countries.",
+  tier: "epic",
+  stat: "social",
+  xp: 300
+}, {
+  id: "c34",
+  title: "Language Unlocked",
+  desc: "Hold a 10-minute conversation entirely in a second language.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 300
+}, {
+  id: "c35",
+  title: "The Solo Trip",
+  desc: "Plan and complete an entire trip abroad by yourself.",
+  tier: "epic",
+  stat: "social",
+  xp: 350
+},
+// ── EPIC: Absurd / Funny ──
+{
+  id: "c36",
+  title: "Sigma Male Grocery Run",
+  desc: "Buy everything on your list, stick to budget, no impulse buys, get home safe.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 200
+}, {
+  id: "c37",
+  title: "The Furniture Assembler",
+  desc: "Build IKEA furniture alone, correctly, first try.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 220
+}, {
+  id: "c38",
+  title: "Main Quest: Adulting",
+  desc: "Cook, clean, exercise, and sleep properly all in the same day.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 200
+}, {
+  id: "c39",
+  title: "Defeated the Pile of Shame",
+  desc: "Finish every game, book, or show you said you would finish.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 250
+}, {
+  id: "c40",
+  title: "The Perfect Week",
+  desc: "Complete every single habit and quest for 7 consecutive days.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 400
+}, {
+  id: "c41",
+  title: "NPC No More",
+  desc: "Start a conversation with a stranger that changes your day.",
+  tier: "epic",
+  stat: "social",
+  xp: 200
+}, {
+  id: "c42",
+  title: "The 1000 Rep Challenge",
+  desc: "Do 1000 total reps of any exercise in a single session.",
+  tier: "epic",
+  stat: "strength",
+  xp: 300
+}, {
+  id: "c43",
+  title: "The Giga Chad Morning",
+  desc: "Wake up early, work out, cold shower, healthy breakfast — all before 8am.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 250
+}, {
+  id: "c44",
+  title: "Plot Armour: Real Life",
+  desc: "Get incredibly lucky at something that actually mattered.",
+  tier: "epic",
+  stat: "mind",
+  xp: 200,
+  hidden: true
+}, {
+  id: "c45",
+  title: "I Understood the Assignment",
+  desc: "Deliver something so good people ask how you did it.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 250
+}, {
+  id: "c46",
+  title: "The Tutorial is Over",
+  desc: "Stop asking for permission and just do the thing.",
+  tier: "epic",
+  stat: "mind",
+  xp: 250
+}, {
+  id: "c47",
+  title: "Respawn Point Set",
+  desc: "Create a stable routine that actually makes you feel grounded.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 250
+}, {
+  id: "c48",
+  title: "Side Quest Completionist",
+  desc: "Finish 50 achievements total.",
+  tier: "epic",
+  stat: "endurance",
+  xp: 300
+}, {
+  id: "c49",
+  title: "The Overnight Success (10 Years)",
+  desc: "Get recognised for something you have been quietly working on for a long time.",
+  tier: "epic",
+  stat: "intelligence",
+  xp: 350
+}, {
+  id: "c50",
+  title: "Charisma Stat Unlocked",
+  desc: "Walk into a room and feel genuinely confident.",
+  tier: "epic",
+  stat: "social",
+  xp: 200
+},
+// ── LEGENDARY: Life ──
+{
+  id: "c51",
+  title: "The Real New Game+",
+  desc: "Completely reinvent your life after a major failure or setback.",
+  tier: "legendary",
+  stat: "mind",
+  xp: 600
+}, {
+  id: "c52",
+  title: "The Five Year Plan: Completed",
+  desc: "Achieve something you set as a 5-year goal.",
+  tier: "legendary",
+  stat: "intelligence",
+  xp: 600
+}, {
+  id: "c53",
+  title: "First Milestone Reached",
+  desc: "Hit a major financial, career, or personal milestone you defined yourself.",
+  tier: "legendary",
+  stat: "intelligence",
+  xp: 600
+}, {
+  id: "c54",
+  title: "The Legend of Your Friend Group",
+  desc: "Become the person your friends call first when something matters.",
+  tier: "legendary",
+  stat: "social",
+  xp: 550
+}, {
+  id: "c55",
+  title: "Raised Someone Up",
+  desc: "Genuinely mentor or support someone through a difficult period of their life.",
+  tier: "legendary",
+  stat: "social",
+  xp: 600
+}, {
+  id: "c56",
+  title: "The Long Game",
+  desc: "Work consistently on one goal for over 2 years and see it pay off.",
+  tier: "legendary",
+  stat: "endurance",
+  xp: 700
+}, {
+  id: "c57",
+  title: "Full Stack Human",
+  desc: "Be physically fit, mentally healthy, financially stable, and socially connected simultaneously.",
+  tier: "legendary",
+  stat: "endurance",
+  xp: 800
+}, {
+  id: "c58",
+  title: "Built Different",
+  desc: "Develop a reputation for reliability that precedes you.",
+  tier: "legendary",
+  stat: "endurance",
+  xp: 600
+}, {
+  id: "c59",
+  title: "The Comeback Arc",
+  desc: "Recover from the lowest point of your life and come back stronger.",
+  tier: "legendary",
+  stat: "mind",
+  xp: 700
+}, {
+  id: "c60",
+  title: "Identity Forged",
+  desc: "Know exactly who you are and what you stand for, unshakeably.",
+  tier: "legendary",
+  stat: "mind",
+  xp: 600
+},
+// ── LEGENDARY: Hard Challenges ──
+{
+  id: "c61",
+  title: "365",
+  desc: "Complete a full year of daily habit tracking without breaking the chain.",
+  tier: "legendary",
+  stat: "endurance",
+  xp: 1000
+}, {
+  id: "c62",
+  title: "Iron Monk",
+  desc: "90 days of no alcohol, no porn, daily exercise, cold showers, and journaling.",
+  tier: "legendary",
+  stat: "endurance",
+  xp: 900
+}, {
+  id: "c63",
+  title: "The Marathon",
+  desc: "Run a full 42km marathon.",
+  tier: "legendary",
+  stat: "strength",
+  xp: 800
+}, {
+  id: "c64",
+  title: "Fluency Achieved",
+  desc: "Become genuinely conversational in a third language.",
+  tier: "legendary",
+  stat: "intelligence",
+  xp: 700
+}, {
+  id: "c65",
+  title: "Master of One",
+  desc: "Spend 1000+ hours mastering a single skill.",
+  tier: "legendary",
+  stat: "intelligence",
+  xp: 800
+}, {
+  id: "c66",
+  title: "The Stoic",
+  desc: "Face a genuinely terrible situation with complete calm and composure.",
+  tier: "legendary",
+  stat: "mind",
+  xp: 600
+}, {
+  id: "c67",
+  title: "Debt Free",
+  desc: "Pay off every debt you owe.",
+  tier: "legendary",
+  stat: "intelligence",
+  xp: 700
+}, {
+  id: "c68",
+  title: "The Iron Body",
+  desc: "Maintain a consistent fitness routine for a full year.",
+  tier: "legendary",
+  stat: "strength",
+  xp: 700
+}, {
+  id: "c69",
+  title: "The Unforgettable",
+  desc: "Do something so memorable a stranger tells the story years later.",
+  tier: "legendary",
+  stat: "social",
+  xp: 600,
+  hidden: true
+}, {
+  id: "c70",
+  title: "Fear? Deleted",
+  desc: "Systematically face and conquer 10 different fears.",
+  tier: "legendary",
+  stat: "mind",
+  xp: 700
+},
+// ── LEGENDARY: Absurd / Funny ──
+{
+  id: "c71",
+  title: "It Cost me my Sanity to get this Achievement",
+  desc: "100% every achievement in this app.",
+  tier: "legendary",
+  stat: "endurance",
+  xp: 9999
+}, {
+  id: "c72",
+  title: "The Final Form",
+  desc: "Look in the mirror and genuinely like what you see.",
+  tier: "legendary",
+  stat: "vitality",
+  xp: 600
+}, {
+  id: "c73",
+  title: "Patch Notes: Self v2.0",
+  desc: "Be genuinely unrecognisable from who you were 2 years ago.",
+  tier: "legendary",
+  stat: "mind",
+  xp: 700
+}, {
+  id: "c74",
+  title: "Main Character Status Confirmed",
+  desc: "Have a moment so cinematic you narrate it in your head.",
+  tier: "legendary",
+  stat: "mind",
+  xp: 500,
+  hidden: true
+}, {
+  id: "c75",
+  title: "The Lore is Real",
+  desc: "Become someone other people tell stories about.",
+  tier: "legendary",
+  stat: "social",
+  xp: 700,
+  hidden: true
+}, {
+  id: "c76",
+  title: "Sigma Grindset: Completed",
+  desc: "Wake up early, never skip a day, stay consistent for 6 months.",
+  tier: "legendary",
+  stat: "endurance",
+  xp: 800
+}, {
+  id: "c77",
+  title: "Achievement Hunter",
+  desc: "Unlock 100 achievements in this app.",
+  tier: "legendary",
+  stat: "endurance",
+  xp: 1000
+}, {
+  id: "c78",
+  title: "The One Piece is Real",
+  desc: "Pursue a dream for years and actually find it.",
+  tier: "legendary",
+  stat: "mind",
+  xp: 1000,
+  hidden: true
+}, {
+  id: "c79",
+  title: "Speedrun World Record: Life",
+  desc: "Accomplish in 5 years what most people take 15 years to do.",
+  tier: "legendary",
+  stat: "intelligence",
+  xp: 900
+}, {
+  id: "c80",
+  title: "You Weren't Supposed to Make It",
+  desc: "Overcome something that statistically should have stopped you.",
+  tier: "legendary",
+  stat: "mind",
+  xp: 1000,
+  hidden: true
+}];
+const TIER_CONFIG = {
+  common: {
+    label: "Common",
+    color: "#9ca3af",
+    bg: "#1a1a20",
+    border: "#2a2a35"
+  },
+  rare: {
+    label: "Rare",
+    color: "#93C5FD",
+    bg: "#0d1520",
+    border: "#1e3050"
+  },
+  epic: {
+    label: "Epic",
+    color: "#C4B5FD",
+    bg: "#130d20",
+    border: "#2a1e50"
+  },
+  legendary: {
+    label: "Legendary",
+    color: "#FCD34D",
+    bg: "#1a1200",
+    border: "#403000"
+  }
+};
+const XP_PER_HABIT = 15;
+const XP_STREAK_BONUS = 5;
+
+// ── Achievement emoji map ──
+const ACH_EMOJI = {
+  // Fitness
+  a1: "💪",
+  a2: "💪",
+  a3: "💪",
+  a4: "🏋️",
+  a5: "🏋️",
+  a6: "🏋️",
+  a7: "🔥",
+  a8: "🔥",
+  a9: "🔥",
+  a10: "🤸",
+  // Mind
+  a11: "🚫",
+  a12: "🚫",
+  a13: "🧘",
+  a14: "🧘",
+  a15: "💭",
+  a16: "📵",
+  a17: "😤",
+  a18: "🎯",
+  a19: "🧠",
+  // Military
+  a20: "🎖️",
+  a21: "⏰",
+  a22: "⏰",
+  a23: "⏰",
+  a24: "🛌",
+  // Intelligence
+  a25: "📚",
+  a26: "🎓",
+  a27: "💻",
+  a28: "🌍",
+  a29: "📖",
+  a30: "📖",
+  a31: "📖",
+  a32: "⚡",
+  // Social
+  a33: "🗡️",
+  a34: "😅",
+  a35: "🤝",
+  a36: "🔄",
+  a37: "😂",
+  a38: "☕",
+  a39: "☕",
+  a40: "👑",
+  // Vitality
+  a41: "💧",
+  a42: "🍳",
+  a43: "🍳",
+  a44: "👨‍🍳",
+  a45: "💪",
+  a46: "✨",
+  a47: "😎",
+  // Creativity
+  a48: "🎨",
+  a49: "🎵",
+  a50: "🔧",
+  // Adventure
+  a51: "🗺️",
+  a52: "🗺️",
+  a53: "✈️",
+  a54: "🚂",
+  a55: "🧭",
+  a56: "⛳",
+  // Life admin
+  a57: "🚗",
+  a58: "🚗",
+  a59: "📋",
+  a60: "📄",
+  a61: "🎒",
+  a62: "🎓",
+  a63: "💼",
+  a64: "💰",
+  a65: "💰",
+  a66: "💰",
+  // Hidden
+  a67: "💋",
+  a68: "💘",
+  a69: "😊",
+  a70: "🧺",
+  a71: "🎬",
+  a72: "☕",
+  a73: "😱",
+  a74: "🧹",
+  a75: "📂",
+  // b batch
+  b1: "🌿",
+  b2: "⏰",
+  b3: "💪",
+  b4: "💧",
+  b5: "⏰",
+  b6: "🦷",
+  b7: "🎧",
+  b8: "👕",
+  b9: "📧",
+  b10: "🔑",
+  b11: "🏠",
+  b12: "😴",
+  b13: "👟",
+  b14: "🏃",
+  b15: "🏃",
+  b16: "🥩",
+  b17: "🏋️",
+  b18: "🤸",
+  b19: "🚿",
+  b20: "🌅",
+  b21: "🪜",
+  b22: "📖",
+  b23: "📓",
+  b24: "⚡",
+  b25: "⌨️",
+  b26: "🗣️",
+  b27: "🎙️",
+  b28: "✍️",
+  b29: "📚",
+  b30: "🤐",
+  b31: "📵",
+  b32: "😤",
+  b33: "😰",
+  b34: "🎯",
+  b35: "💭",
+  b36: "📱",
+  b37: "🙏",
+  b38: "🧗",
+  b39: "🤝",
+  b40: "🛡️",
+  b41: "🎉",
+  b42: "💬",
+  b43: "😂",
+  b44: "👫",
+  b45: "🎤",
+  b46: "❤️",
+  b47: "📅",
+  b48: "🎨",
+  b49: "📝",
+  b50: "📷",
+  b51: "🍽️",
+  b52: "🎵",
+  b53: "🛋️",
+  b54: "🔨",
+  b55: "😂",
+  b56: "💰",
+  b57: "🛍️",
+  b58: "💰",
+  b59: "📈",
+  b60: "🌟",
+  b61: "🌙",
+  b62: "✨",
+  b63: "✉️",
+  b64: "🌅",
+  b65: "⭐",
+  b66: "🛂",
+  b67: "🎯",
+  b68: "🏆",
+  b69: "📔",
+  b70: "🦋",
+  b71: "🎖️",
+  b72: "⏰",
+  b73: "⚔️",
+  b74: "👔",
+  b75: "🍽️",
+  b76: "🌙",
+  b77: "⬆️",
+  b78: "💻",
+  b79: "🐛",
+  b80: "🔧",
+  b81: "⌨️",
+  b82: "🤖",
+  b83: "🚀",
+  b84: "📡",
+  b85: "🦸",
+  b86: "🌙",
+  b87: "🔓",
+  b88: "🗡️",
+  b89: "😇",
+  b90: "📔",
+  // c batch
+  c1: "🪞",
+  c2: "😱",
+  c3: "🤐",
+  c4: "✅",
+  c5: "⛩️",
+  c6: "⏰",
+  c7: "🔗",
+  c8: "💬",
+  c9: "🔥",
+  c10: "📵",
+  c11: "🧱",
+  c12: "⏳",
+  c13: "🙋",
+  c14: "🙏",
+  c15: "💀",
+  c16: "😴",
+  c17: "📚",
+  c18: "🗓️",
+  c19: "🕊️",
+  c20: "⚡",
+  c21: "🏠",
+  c22: "📦",
+  c23: "📄",
+  c24: "🎯",
+  c25: "📊",
+  c26: "🧑‍🏫",
+  c27: "🌐",
+  c28: "🤝",
+  c29: "💸",
+  c30: "🛒",
+  c31: "📋",
+  c32: "🔑",
+  c33: "🌍",
+  c34: "🗣️",
+  c35: "✈️",
+  c36: "🛒",
+  c37: "🔨",
+  c38: "🏠",
+  c39: "🎮",
+  c40: "⭐",
+  c41: "🗣️",
+  c42: "💯",
+  c43: "🌅",
+  c44: "🍀",
+  c45: "🎯",
+  c46: "🚀",
+  c47: "⚓",
+  c48: "🏅",
+  c49: "⏳",
+  c50: "😎",
+  c51: "♟️",
+  c52: "📅",
+  c53: "🏆",
+  c54: "👑",
+  c55: "🦸",
+  c56: "⏳",
+  c57: "💎",
+  c58: "🏛️",
+  c59: "🦅",
+  c60: "🧭",
+  c61: "📅",
+  c62: "⛩️",
+  c63: "🏅",
+  c64: "🌍",
+  c65: "🎓",
+  c66: "🪨",
+  c67: "💳",
+  c68: "💪",
+  c69: "🌟",
+  c70: "⚔️",
+  c71: "💀",
+  c72: "🪞",
+  c73: "🦋",
+  c74: "🎬",
+  c75: "📖",
+  c76: "⚡",
+  c77: "🏆",
+  c78: "🗺️",
+  c79: "⚡",
+  c80: "💎"
+};
+
+// ── Exercise Card ──
+function ExerciseCard({
+  ex,
+  color,
+  expanded,
+  onToggle
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#0c0c16",
+      border: `1px solid ${expanded ? color + "40" : "#1a1a28"}`,
+      borderRadius: 12,
+      overflow: "hidden",
+      transition: "border-color 0.2s"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: onToggle,
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      padding: "12px 14px",
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 36,
+      height: 36,
+      borderRadius: 9,
+      background: color + "18",
+      border: `1px solid ${color}30`,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 13,
+      fontWeight: 900,
+      color: color
+    }
+  }, "💪")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700,
+      marginBottom: 1
+    }
+  }, ex.name), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: color,
+      fontWeight: 700
+    }
+  }, ex.sets), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "#3a3a5a"
+    }
+  }, ex.muscle))), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "#3a3a5a",
+      flexShrink: 0
+    }
+  }, expanded ? "▲" : "▼")), expanded && /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: "1px solid #12121e",
+      padding: "12px 14px"
+    }
+  }, ex.equipment && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "#3a3a5a",
+      marginBottom: 10
+    }
+  }, "🏋️ Equipment: ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#6a6a8a"
+    }
+  }, ex.equipment)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      color: "#6EE7B7",
+      letterSpacing: "0.1em",
+      textTransform: "uppercase",
+      marginBottom: 5
+    }
+  }, "Form"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#8888aa",
+      lineHeight: 1.7
+    }
+  }, ex.form)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      color: "#F87171",
+      letterSpacing: "0.1em",
+      textTransform: "uppercase",
+      marginBottom: 5
+    }
+  }, "Common Mistakes"), ex.mistakes.map((m, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      display: "flex",
+      gap: 8,
+      padding: "3px 0",
+      fontSize: 12,
+      color: "#7a5a5a"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#F87171",
+      flexShrink: 0
+    }
+  }, "✗"), m)))));
+}
+
+// ── Meal Card with expandable instructions ──
+function MealCard({
+  meal
+}) {
+  const [expanded, setExpanded] = React.useState(false);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#0c0c16",
+      border: "1px solid #1a1a28",
+      borderRadius: 12,
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: () => setExpanded(e => !e),
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      padding: "12px 14px",
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 24
+    }
+  }, meal.emoji), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 700
+    }
+  }, meal.name), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "#3a3a5a"
+    }
+  }, "⏱ ", meal.time)), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "#3a3a5a"
+    }
+  }, expanded ? "▲" : "▼")), expanded && /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: "1px solid #14141f",
+      padding: "12px 14px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      color: "#6EE7B7",
+      letterSpacing: "0.1em",
+      textTransform: "uppercase",
+      marginBottom: 6
+    }
+  }, "Ingredients"), meal.ingredients.map((ing, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      fontSize: 12,
+      color: "#8888aa",
+      padding: "3px 0",
+      borderBottom: "1px solid #12121e",
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#3a3a5a"
+    }
+  }, "•"), ing))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      fontWeight: 700,
+      color: "#FCD34D",
+      letterSpacing: "0.1em",
+      textTransform: "uppercase",
+      marginBottom: 6
+    }
+  }, "How to make it"), meal.steps.map((step, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      display: "flex",
+      gap: 10,
+      padding: "5px 0",
+      borderBottom: "1px solid #12121e"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      fontWeight: 900,
+      color: "#FCD34D",
+      flexShrink: 0,
+      width: 16
+    }
+  }, i + 1, "."), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "#8888aa",
+      lineHeight: 1.6
+    }
+  }, step))))));
+}
+
+// ── Tier badge SVG shapes ──
+function TierBadge({
+  tier,
+  emoji,
+  unlocked,
+  size = 38
+}) {
+  const tc = TIER_CONFIG[tier];
+  const color = unlocked ? tc.color : tc.color + "30";
+  const bg = unlocked ? tc.color + "18" : "#14141f";
+  const glow = unlocked && (tier === "epic" || tier === "legendary");
+  const shapes = {
+    common: /*#__PURE__*/React.createElement("circle", {
+      cx: "19",
+      cy: "19",
+      r: "16"
+    }),
+    rare: /*#__PURE__*/React.createElement("polygon", {
+      points: "19,3 35,28 3,28"
+    }),
+    epic: /*#__PURE__*/React.createElement("polygon", {
+      points: "19,2 36,10 36,28 19,36 2,28 2,10"
+    }),
+    legendary: /*#__PURE__*/React.createElement("polygon", {
+      points: "19,2 23,14 36,14 26,22 30,35 19,27 8,35 12,22 2,14 15,14"
+    })
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: size,
+      height: size,
+      flexShrink: 0,
+      position: "relative",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      filter: glow ? `drop-shadow(0 0 6px ${tc.color}80)` : "none"
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: size,
+    height: size,
+    viewBox: "0 0 38 38",
+    style: {
+      position: "absolute",
+      inset: 0
+    }
+  }, /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("linearGradient", {
+    id: `grad-${tier}`,
+    x1: "0%",
+    y1: "0%",
+    x2: "100%",
+    y2: "100%"
+  }, /*#__PURE__*/React.createElement("stop", {
+    offset: "0%",
+    stopColor: color,
+    stopOpacity: "0.25"
+  }), /*#__PURE__*/React.createElement("stop", {
+    offset: "100%",
+    stopColor: color,
+    stopOpacity: "0.08"
+  }))), /*#__PURE__*/React.createElement("g", {
+    fill: `url(#grad-${tier})`,
+    stroke: color,
+    strokeWidth: "1.5"
+  }, shapes[tier])), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: size * 0.42,
+      position: "relative",
+      zIndex: 1,
+      lineHeight: 1
+    }
+  }, unlocked ? emoji : "🔒"));
+}
+const STAT_GROWTH = 0.1;
+function xpForLevel(l) {
+  return l * 100;
+}
+function totalXpForLevel(l) {
+  let t = 0;
+  for (let i = 1; i < l; i++) t += xpForLevel(i);
+  return t;
+}
+function getLevelFromXp(xp) {
+  let l = 1;
+  while (xp >= totalXpForLevel(l + 1)) l++;
+  return l;
+}
+function getXpProgress(xp) {
+  const level = getLevelFromXp(xp),
+    current = xp - totalXpForLevel(level),
+    needed = xpForLevel(level);
+  return {
+    level,
+    current,
+    needed,
+    pct: Math.min(100, current / needed * 100)
+  };
+}
+const RANK_LADDER = [{
+  rank: "E",
+  minLevel: 1,
+  color: "#666666",
+  title: "The Weakest",
+  glow: false
+}, {
+  rank: "D",
+  minLevel: 10,
+  color: "#93C5FD",
+  title: "Apprentice Hunter",
+  glow: false
+}, {
+  rank: "C",
+  minLevel: 50,
+  color: "#6EE7B7",
+  title: "Seasoned Hunter",
+  glow: false
+}, {
+  rank: "B",
+  minLevel: 75,
+  color: "#F97316",
+  title: "Elite Hunter",
+  glow: true
+}, {
+  rank: "A",
+  minLevel: 100,
+  color: "#F87171",
+  title: "Veteran Hunter",
+  glow: true
+}, {
+  rank: "S",
+  minLevel: 150,
+  color: "#FCD34D",
+  title: "Shadow Hunter",
+  glow: true
+}, {
+  rank: "SS",
+  minLevel: 250,
+  color: "#E879F9",
+  title: "National-Level",
+  glow: true
+}, {
+  rank: "SSS",
+  minLevel: 400,
+  color: "#FFFFFF",
+  title: "Monarch's Vanguard",
+  glow: true
+}, {
+  rank: "???",
+  minLevel: 700,
+  color: "#FCD34D",
+  title: "Arise",
+  glow: true
+}];
+function getRank(level) {
+  let current = RANK_LADDER[0];
+  for (const r of RANK_LADDER) {
+    if (level >= r.minLevel) current = r;else break;
+  }
+  return current;
+}
+function getNextRank(level) {
+  for (const r of RANK_LADDER) {
+    if (level < r.minLevel) return r;
+  }
+  return null;
+}
+const RANK_UP_LEVELS = new Set(RANK_LADDER.map(r => r.minLevel));
+function fmt(n) {
+  const r = Math.round(n * 10) / 10;
+  return Number.isInteger(r) ? r.toString() : r.toFixed(1);
+}
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+function timeUntilMidnight() {
+  const now = new Date(),
+    midnight = new Date();
+  midnight.setHours(24, 0, 0, 0);
+  const diff = midnight - now,
+    h = Math.floor(diff / 3600000),
+    m = Math.floor(diff % 3600000 / 60000);
+  return `${h}h ${m}m`;
+}
+const WEEKLY_SPLIT = {
+  1: {
+    name: "Chest & Triceps",
+    emoji: "💪",
+    color: "#F87171"
+  },
+  2: {
+    name: "Back & Biceps",
+    emoji: "🏋️",
+    color: "#93C5FD"
+  },
+  3: {
+    name: "Legs",
+    emoji: "🦵",
+    color: "#6EE7B7"
+  },
+  4: {
+    name: "Shoulders & Traps",
+    emoji: "🔝",
+    color: "#FCD34D"
+  },
+  5: {
+    name: "Full Body & Arms",
+    emoji: "⚡",
+    color: "#C4B5FD"
+  },
+  6: {
+    name: "Active Rest",
+    emoji: "🧘",
+    color: "#FDA4AF"
+  },
+  0: {
+    name: "Active Rest",
+    emoji: "🧘",
+    color: "#FDA4AF"
+  }
+};
+const WORKOUTS = {
+  // ── MONDAY: Chest + Triceps ──────────────────────────────────
+  1: {
+    gym: [{
+      name: "Bench Press",
+      sets: "4 x 8-10",
+      muscle: "Chest",
+      form: "Lie flat, grip slightly wider than shoulder width. Lower bar to chest with control, press explosively up. Keep shoulder blades pinched back throughout.",
+      mistakes: ["Bouncing bar off chest", "Flaring elbows out 90°", "Lifting hips off bench"],
+      equipment: "Barbell + bench"
+    }, {
+      name: "Incline Dumbbell Press",
+      sets: "3 x 10-12",
+      muscle: "Upper Chest",
+      form: "Set bench to 30-45°. Press dumbbells from chest level up and slightly inward. Don't lock elbows at top.",
+      mistakes: ["Too steep an incline (makes it a shoulder exercise)", "Letting dumbbells drift too wide"],
+      equipment: "Dumbbells + incline bench"
+    }, {
+      name: "Cable Fly",
+      sets: "3 x 12-15",
+      muscle: "Chest",
+      form: "Set cables at chest height. Step forward, slight forward lean. Bring hands together in a hugging arc, squeeze chest at the end.",
+      mistakes: ["Bending elbows too much (becomes a press)", "Using too much weight and losing the squeeze"],
+      equipment: "Cable machine"
+    }, {
+      name: "Tricep Pushdown",
+      sets: "3 x 12-15",
+      muscle: "Triceps",
+      form: "Stand at cable, push bar down keeping elbows pinned at sides. Fully extend arms, squeeze triceps at bottom.",
+      mistakes: ["Letting elbows flare out", "Leaning forward excessively"],
+      equipment: "Cable machine + bar attachment"
+    }, {
+      name: "Overhead Tricep Extension",
+      sets: "3 x 12",
+      muscle: "Triceps (long head)",
+      form: "Hold dumbbell overhead with both hands. Lower behind head by bending elbows, keeping upper arms still. Extend back up.",
+      mistakes: ["Moving upper arms", "Using too heavy a weight"],
+      equipment: "Dumbbell"
+    }, {
+      name: "Dips",
+      sets: "3 x failure",
+      muscle: "Chest + Triceps",
+      form: "Lean slightly forward for chest focus. Lower until upper arms are parallel to floor. Push back up without locking elbows completely.",
+      mistakes: ["Going too shallow", "Shrugging shoulders up"],
+      equipment: "Dip bars or bench"
+    }],
+    home: [{
+      name: "Push-Ups",
+      sets: "4 x 20-25",
+      muscle: "Chest + Triceps",
+      form: "Hands slightly wider than shoulders. Body straight from head to heels. Lower chest to floor, press back up explosively.",
+      mistakes: ["Sagging hips", "Partial range of motion", "Flaring elbows wide"],
+      equipment: "None"
+    }, {
+      name: "Diamond Push-Ups",
+      sets: "3 x 12-15",
+      muscle: "Triceps + Inner Chest",
+      form: "Place hands together under chest forming a diamond. Lower chest to hands. This hits triceps harder than regular push-ups.",
+      mistakes: ["Letting hips drop", "Not achieving full range"],
+      equipment: "None"
+    }, {
+      name: "Wide Push-Ups",
+      sets: "3 x 15",
+      muscle: "Outer Chest",
+      form: "Hands 1.5x shoulder width apart. Lower chest between hands. Elbows go out to sides.",
+      mistakes: ["Hands too wide causing shoulder strain", "Not lowering full depth"],
+      equipment: "None"
+    }, {
+      name: "Pike Push-Ups",
+      sets: "3 x 10-12",
+      muscle: "Shoulders + Triceps",
+      form: "Start in downward dog position. Lower head toward floor between hands, push back up. Like an overhead press.",
+      mistakes: ["Not forming a proper V-shape with hips high", "Moving too fast"],
+      equipment: "None"
+    }, {
+      name: "Tricep Bench Dips",
+      sets: "3 x 15-20",
+      muscle: "Triceps",
+      form: "Hands on chair/bench behind you, legs extended. Lower body by bending elbows to 90°, push back up.",
+      mistakes: ["Elbows flaring outward", "Not going deep enough"],
+      equipment: "Chair or bench"
+    }]
+  },
+  // ── TUESDAY: Back + Biceps ───────────────────────────────────
+  2: {
+    gym: [{
+      name: "Deadlift",
+      sets: "4 x 5-6",
+      muscle: "Full Back + Hamstrings",
+      form: "Bar over mid-foot, hip-width stance. Hinge at hips, grip bar. Chest up, neutral spine. Push floor away, drive hips forward at top.",
+      mistakes: ["Rounding lower back", "Bar drifting from body", "Jerking weight up"],
+      equipment: "Barbell"
+    }, {
+      name: "Barbell Row",
+      sets: "4 x 8-10",
+      muscle: "Mid Back + Lats",
+      form: "Hinge to ~45°, overhand grip. Pull bar to lower chest/upper stomach. Lead with elbows, squeeze shoulder blades together at top.",
+      mistakes: ["Using momentum", "Pulling to the wrong point (belly vs chest)", "Excessive torso swing"],
+      equipment: "Barbell"
+    }, {
+      name: "Lat Pulldown",
+      sets: "3 x 10-12",
+      muscle: "Lats",
+      form: "Wide overhand grip. Lean back slightly. Pull bar to upper chest, drive elbows down and back. Control the return.",
+      mistakes: ["Pulling behind the neck", "Leaning back too far", "Not achieving full stretch at top"],
+      equipment: "Cable machine"
+    }, {
+      name: "Seated Cable Row",
+      sets: "3 x 12",
+      muscle: "Mid Back",
+      form: "Sit upright, feet on platform. Pull handle to stomach, elbows close to body. Squeeze mid-back, slowly return.",
+      mistakes: ["Rounding back on the return", "Using legs and swinging"],
+      equipment: "Cable machine"
+    }, {
+      name: "Barbell Curl",
+      sets: "3 x 10-12",
+      muscle: "Biceps",
+      form: "Stand with barbell, underhand grip shoulder-width. Curl up keeping elbows at sides. Squeeze at top, lower slowly.",
+      mistakes: ["Swinging body", "Moving elbows forward", "Using momentum"],
+      equipment: "Barbell or EZ bar"
+    }, {
+      name: "Hammer Curl",
+      sets: "3 x 12",
+      muscle: "Biceps + Brachialis",
+      form: "Neutral grip (thumbs up). Curl dumbbell keeping neutral wrist. Targets outer bicep and forearm.",
+      mistakes: ["Wrist rotating (should stay neutral)", "Elbows drifting forward"],
+      equipment: "Dumbbells"
+    }],
+    home: [{
+      name: "Doorframe Rows",
+      sets: "4 x 12-15",
+      muscle: "Back + Biceps",
+      form: "Hold doorframe at chest height, lean back. Pull chest to door. If too easy, lean further back.",
+      mistakes: ["Not leaning back enough to create resistance", "Pulling with arms only"],
+      equipment: "Doorframe"
+    }, {
+      name: "Towel Bicep Curl",
+      sets: "3 x 15",
+      muscle: "Biceps",
+      form: "Loop towel around table leg. Lean back, curl body up by bending elbows. Squeeze at top.",
+      mistakes: ["Not creating enough tension", "Moving too fast"],
+      equipment: "Towel + table"
+    }, {
+      name: "Superman Hold",
+      sets: "3 x 30-45 sec",
+      muscle: "Lower Back",
+      form: "Lie face down. Lift chest and legs off floor simultaneously. Hold and squeeze glutes and back.",
+      mistakes: ["Only lifting legs OR chest (must be both)", "Holding breath"],
+      equipment: "None"
+    }, {
+      name: "Inverted Row (under table)",
+      sets: "4 x 10-12",
+      muscle: "Upper Back",
+      form: "Lie under sturdy table. Grip edge, body straight. Pull chest up to table. Keep body rigid throughout.",
+      mistakes: ["Sagging hips", "Not going full range"],
+      equipment: "Sturdy table"
+    }, {
+      name: "Resistance Band Curl",
+      sets: "3 x 15",
+      muscle: "Biceps",
+      form: "Stand on band, curl handles up keeping elbows at sides. If no band, use backpack filled with books.",
+      mistakes: ["Band too loose (no tension)", "Swinging body"],
+      equipment: "Resistance band or heavy backpack"
+    }]
+  },
+  // ── WEDNESDAY: Legs ──────────────────────────────────────────
+  3: {
+    gym: [{
+      name: "Barbell Squat",
+      sets: "4 x 8-10",
+      muscle: "Quads + Glutes + Hamstrings",
+      form: "Bar on upper traps, feet shoulder-width. Squat until thighs parallel to floor. Knees track over toes. Drive through heels to stand.",
+      mistakes: ["Knees caving in", "Heels rising", "Not hitting depth", "Excessive forward lean"],
+      equipment: "Barbell + squat rack"
+    }, {
+      name: "Romanian Deadlift",
+      sets: "3 x 10-12",
+      muscle: "Hamstrings + Glutes",
+      form: "Hold barbell, push hips back keeping knees slightly bent. Lower bar along legs until you feel hamstring stretch. Drive hips forward to return.",
+      mistakes: ["Rounding back", "Bending knees too much (becomes a squat)", "Not feeling the stretch"],
+      equipment: "Barbell"
+    }, {
+      name: "Leg Press",
+      sets: "3 x 12-15",
+      muscle: "Quads + Glutes",
+      form: "Feet shoulder-width on platform. Lower platform until knees at 90°. Press away without locking knees at top.",
+      mistakes: ["Letting knees cave", "Lifting hips off seat at bottom", "Locking knees at top"],
+      equipment: "Leg press machine"
+    }, {
+      name: "Leg Curl",
+      sets: "3 x 12-15",
+      muscle: "Hamstrings",
+      form: "Lie face down. Curl legs up toward glutes. Squeeze at top, lower slowly. Don't let hips rise.",
+      mistakes: ["Hips lifting off pad", "Using momentum to swing weight"],
+      equipment: "Leg curl machine"
+    }, {
+      name: "Calf Raise",
+      sets: "4 x 20",
+      muscle: "Calves",
+      form: "Stand on edge of step. Rise up on toes fully, pause, lower below step level for full stretch. Slow and controlled.",
+      mistakes: ["Bouncing", "Not achieving full range — both up AND down"],
+      equipment: "Step or plate"
+    }, {
+      name: "Walking Lunge",
+      sets: "3 x 12 each leg",
+      muscle: "Quads + Glutes",
+      form: "Step forward, lower back knee toward floor. Front knee stays above ankle. Push off front foot to bring feet together, repeat other leg.",
+      mistakes: ["Knee going past toes", "Leaning too far forward", "Short stride"],
+      equipment: "Dumbbells optional"
+    }],
+    home: [{
+      name: "Bodyweight Squat",
+      sets: "4 x 25-30",
+      muscle: "Quads + Glutes",
+      form: "Feet shoulder-width, toes slightly out. Sit back and down, chest up. Thighs parallel to floor. Drive through heels.",
+      mistakes: ["Knees caving in", "Heels lifting", "Not hitting depth"],
+      equipment: "None"
+    }, {
+      name: "Bulgarian Split Squat",
+      sets: "3 x 12 each leg",
+      muscle: "Quads + Glutes",
+      form: "Rear foot elevated on chair. Lower back knee toward floor. Keep torso upright. Most weight on front foot.",
+      mistakes: ["Front knee caving", "Leaning too far forward", "Chair too high"],
+      equipment: "Chair"
+    }, {
+      name: "Glute Bridge",
+      sets: "4 x 20",
+      muscle: "Glutes + Hamstrings",
+      form: "Lie on back, knees bent, feet flat. Drive hips up by squeezing glutes. Hold 1 second at top. Lower slowly.",
+      mistakes: ["Not fully extending hips", "Pushing through toes instead of heels"],
+      equipment: "None"
+    }, {
+      name: "Jump Squat",
+      sets: "3 x 15",
+      muscle: "Quads + Explosive Power",
+      form: "Squat down to parallel, explode up jumping as high as possible. Land softly with knees slightly bent.",
+      mistakes: ["Landing with straight legs", "Not hitting squat depth before jumping"],
+      equipment: "None"
+    }, {
+      name: "Wall Sit",
+      sets: "3 x 45-60 sec",
+      muscle: "Quads",
+      form: "Back flat against wall, thighs parallel to floor, knees at 90°. Hold position. Arms out in front.",
+      mistakes: ["Knees going past 90°", "Pushing through heels", "Sliding back up early"],
+      equipment: "Wall"
+    }, {
+      name: "Calf Raise on Step",
+      sets: "4 x 25",
+      muscle: "Calves",
+      form: "Stand on step edge. Full range — rise to toes, lower heel below step. Pause at both ends.",
+      mistakes: ["Bouncing through reps", "Short range of motion"],
+      equipment: "Step or stair"
+    }]
+  },
+  // ── THURSDAY: Shoulders + Traps ──────────────────────────────
+  4: {
+    gym: [{
+      name: "Overhead Press",
+      sets: "4 x 8-10",
+      muscle: "Shoulders (all heads)",
+      form: "Stand with barbell at shoulder height, grip just outside shoulders. Press overhead until arms straight. Lower back to clavicle.",
+      mistakes: ["Flaring elbows too wide", "Leaning back excessively", "Bar path drifting forward"],
+      equipment: "Barbell"
+    }, {
+      name: "Dumbbell Lateral Raise",
+      sets: "4 x 12-15",
+      muscle: "Side Delts",
+      form: "Hold dumbbells at sides. Raise to shoulder height with slight elbow bend. Pinky slightly higher than thumb (like pouring a jug). Lower slowly.",
+      mistakes: ["Using momentum/swinging", "Raising too high above shoulder", "Straight-arm raises (causes impingement)"],
+      equipment: "Dumbbells"
+    }, {
+      name: "Face Pull",
+      sets: "3 x 15-20",
+      muscle: "Rear Delts + Rotator Cuff",
+      form: "Set cable at head height with rope. Pull to face, hands beside ears, elbows high. External rotate at end of movement.",
+      mistakes: ["Not keeping elbows high", "Pulling to neck instead of face", "Too heavy (ruin form)"],
+      equipment: "Cable machine + rope"
+    }, {
+      name: "Dumbbell Front Raise",
+      sets: "3 x 12",
+      muscle: "Front Delts",
+      form: "Hold dumbbells at thighs. Raise one at a time to shoulder height. Lower with control.",
+      mistakes: ["Swinging body", "Going above shoulder height", "Locking elbows"],
+      equipment: "Dumbbells"
+    }, {
+      name: "Barbell Shrug",
+      sets: "4 x 12-15",
+      muscle: "Traps",
+      form: "Hold barbell in front, arms straight. Shrug shoulders straight up toward ears. Pause at top, lower slowly.",
+      mistakes: ["Rolling shoulders (causes injury)", "Not achieving full height", "Bending elbows"],
+      equipment: "Barbell"
+    }],
+    home: [{
+      name: "Pike Push-Up",
+      sets: "4 x 12-15",
+      muscle: "Shoulders",
+      form: "Start in downward dog, hips high. Lower head toward floor between hands. Push back up. Like a vertical press.",
+      mistakes: ["Hips too low (becomes regular push-up)", "Head hitting floor"],
+      equipment: "None"
+    }, {
+      name: "Lateral Raise (water bottles)",
+      sets: "4 x 15",
+      muscle: "Side Delts",
+      form: "Hold water bottles or any weight at sides. Raise to shoulder height with slight elbow bend. Lower slowly.",
+      mistakes: ["Swinging momentum", "Going above shoulder level"],
+      equipment: "Water bottles or any household weight"
+    }, {
+      name: "Handstand Hold (wall)",
+      sets: "3 x 20-30 sec",
+      muscle: "Shoulders + Core",
+      form: "Kick up to wall. Hold position with arms straight and core tight. Progress to handstand push-ups over time.",
+      mistakes: ["Arching back", "Looking up instead of down at floor"],
+      equipment: "Wall"
+    }, {
+      name: "Rear Delt Fly (floor)",
+      sets: "3 x 15",
+      muscle: "Rear Delts",
+      form: "Lie face down. Hold light weights, raise arms out to sides keeping slight elbow bend. Squeeze shoulder blades.",
+      mistakes: ["Too heavy (form breaks)", "Arms going forward instead of to sides"],
+      equipment: "Light dumbbells or water bottles"
+    }, {
+      name: "Shoulder Tap Push-Up",
+      sets: "3 x 10 each side",
+      muscle: "Shoulders + Core",
+      form: "In push-up position. Do a push-up, at top tap opposite shoulder with hand. Alternate. Keep hips stable.",
+      mistakes: ["Hips rotating side to side", "Rushing the shoulder tap"],
+      equipment: "None"
+    }]
+  },
+  // ── FRIDAY: Full Body + Arms ─────────────────────────────────
+  5: {
+    gym: [{
+      name: "Power Clean",
+      sets: "4 x 5",
+      muscle: "Full Body Power",
+      form: "Bar at shins, explosively pull bar up by extending hips and knees, shrug and catch in quarter squat. This is a skill — start light.",
+      mistakes: ["Pulling with arms too early", "Not extending hips fully", "Catching too high"],
+      equipment: "Barbell"
+    }, {
+      name: "Pull-Up",
+      sets: "4 x max",
+      muscle: "Back + Biceps",
+      form: "Overhand grip wider than shoulders. Hang fully, then pull chin above bar. Lower slowly all the way down.",
+      mistakes: ["Not going full range (partial reps)", "Kipping/swinging", "Shrugging at the bottom"],
+      equipment: "Pull-up bar"
+    }, {
+      name: "Dumbbell Curl to Press",
+      sets: "3 x 10",
+      muscle: "Biceps + Shoulders",
+      form: "Curl dumbbells up, then rotate and press overhead. Two exercises combined. Control both movements.",
+      mistakes: ["Rushing the movement", "Using momentum on the curl portion"],
+      equipment: "Dumbbells"
+    }, {
+      name: "Tricep Dips",
+      sets: "3 x 12-15",
+      muscle: "Triceps",
+      form: "Upright torso, elbows back. Lower until upper arm parallel, press up. Keep chest up.",
+      mistakes: ["Leaning forward too much", "Not going full depth"],
+      equipment: "Dip bars"
+    }, {
+      name: "Plank",
+      sets: "3 x 60 sec",
+      muscle: "Core",
+      form: "Forearms on floor, body in straight line. Squeeze glutes and abs. Don't let hips sag or rise.",
+      mistakes: ["Hips dropping", "Looking up (strains neck)", "Holding breath"],
+      equipment: "None"
+    }, {
+      name: "Hanging Leg Raise",
+      sets: "3 x 12-15",
+      muscle: "Lower Abs",
+      form: "Hang from bar. Raise legs to 90° keeping them straight. Lower with control. Don't swing.",
+      mistakes: ["Swinging momentum", "Bending knees to make it easier", "Not controlling the descent"],
+      equipment: "Pull-up bar"
+    }],
+    home: [{
+      name: "Burpee",
+      sets: "4 x 15",
+      muscle: "Full Body",
+      form: "Drop to push-up, do push-up, jump feet to hands, explode up jumping with arms overhead. Land softly.",
+      mistakes: ["Skipping the push-up", "Landing with straight legs", "Poor push-up form"],
+      equipment: "None"
+    }, {
+      name: "Pull-Up or Doorframe Row",
+      sets: "4 x max",
+      muscle: "Back + Biceps",
+      form: "If you have a bar, do full pull-ups. Otherwise doorframe row: hold frame, lean back, pull chest to door.",
+      mistakes: ["Not achieving full range", "Kipping for pull-ups"],
+      equipment: "Pull-up bar or doorframe"
+    }, {
+      name: "Diamond Push-Up",
+      sets: "3 x 12",
+      muscle: "Triceps",
+      form: "Hands together under chest. Lower chest to hands, press up. Elbows go back, not out.",
+      mistakes: ["Hands too far forward", "Elbows flaring"],
+      equipment: "None"
+    }, {
+      name: "Plank to Push-Up",
+      sets: "3 x 10",
+      muscle: "Core + Chest",
+      form: "Start in forearm plank. Press up to full push-up one arm at a time, then back down. Alternate lead arm.",
+      mistakes: ["Hips rocking", "Rushing the movement"],
+      equipment: "None"
+    }, {
+      name: "Mountain Climbers",
+      sets: "3 x 30 sec",
+      muscle: "Core + Cardio",
+      form: "Push-up position. Drive knees alternately to chest quickly. Keep hips level, don't bounce them up.",
+      mistakes: ["Hips rising too high", "Too slow to get cardio benefit"],
+      equipment: "None"
+    }]
+  },
+  // ── WEEKEND: Active Rest ─────────────────────────────────────
+  6: {
+    gym: [],
+    home: [{
+      name: "Morning Walk or Jog",
+      sets: "20-30 min",
+      muscle: "Cardio + Recovery",
+      form: "Easy pace, conversational. This is active recovery, not a workout. Just move.",
+      mistakes: ["Going too hard and sabotaging recovery"],
+      equipment: "None"
+    }, {
+      name: "Full Body Stretch",
+      sets: "10-15 min",
+      muscle: "Flexibility",
+      form: "Hold each stretch 30-45 seconds. Focus on areas trained this week: hips, chest, back, shoulders.",
+      mistakes: ["Bouncing (use static holds)", "Stretching cold muscles — warm up first"],
+      equipment: "None"
+    }, {
+      name: "Yoga Flow",
+      sets: "15-20 min",
+      muscle: "Mobility + Mind",
+      form: "Follow any beginner YouTube yoga flow. Focus on breathing and holding positions.",
+      mistakes: ["Forcing range you don't have yet"],
+      equipment: "Mat optional"
+    }]
+  }
+};
+
+// ── NUTRITION DATA ──────────────────────────────────────────────────────────
+const NUTRITION_DATA = {
+  postWorkout: [{
+    name: "Chicken & Rice",
+    emoji: "🍗",
+    time: "30 min",
+    tags: ["bulk", "maintain"],
+    ingredients: ["200g chicken breast", "150g white rice", "1 head broccoli", "Salt, pepper, garlic powder", "1 tbsp olive oil"],
+    steps: ["Cook rice in salted water for 18 mins, drain.", "Season chicken with salt, pepper, garlic powder.", "Heat olive oil in pan on medium-high. Cook chicken 6-7 mins each side until golden.", "Steam broccoli for 5 mins or microwave with a splash of water for 3 mins.", "Slice chicken, serve over rice with broccoli on the side."]
+  }, {
+    name: "Egg Omelette",
+    emoji: "🥚",
+    time: "10 min",
+    tags: ["cut", "maintain"],
+    ingredients: ["4 eggs", "Handful of spinach", "30g cheese (any)", "Salt and pepper", "Butter or oil"],
+    steps: ["Crack eggs into bowl, whisk with salt and pepper.", "Heat butter in pan on medium. Pour in eggs.", "When edges start to set, add spinach and cheese on one half.", "Fold the other half over. Cook 1 more min.", "Slide onto plate and eat immediately."]
+  }, {
+    name: "Protein Shake + Banana",
+    emoji: "🥤",
+    time: "2 min",
+    tags: ["bulk", "cut", "maintain"],
+    ingredients: ["1 scoop whey protein", "250ml milk (or water for fewer calories)", "1 banana"],
+    steps: ["Add milk to shaker or blender first.", "Add protein powder.", "Shake for 30 seconds or blend until smooth.", "Eat the banana alongside it.", "Drink within 30 minutes post-workout for best absorption."]
+  }, {
+    name: "Tuna Rice Bowl",
+    emoji: "🐟",
+    time: "10 min",
+    tags: ["cut", "maintain"],
+    ingredients: ["1 can tuna in water", "150g cooked rice", "½ cucumber, diced", "1 tbsp soy sauce", "1 tsp sesame oil (optional)", "Spring onion"],
+    steps: ["Cook rice in advance or use leftover rice.", "Drain tuna and break apart with a fork.", "Slice cucumber and spring onion.", "Mix rice, tuna, and cucumber in a bowl.", "Drizzle soy sauce and sesame oil over top. Mix and eat."]
+  }, {
+    name: "Beef & Potato",
+    emoji: "🥩",
+    time: "40 min",
+    tags: ["bulk"],
+    ingredients: ["150g beef mince", "2 medium potatoes", "Handful of frozen peas", "1 onion", "Salt, pepper, garlic", "1 tbsp oil"],
+    steps: ["Cube potatoes and boil in salted water for 15 mins until soft. Drain.", "Dice onion. Fry in oil on medium heat for 3 mins.", "Add beef mince, break apart. Cook until browned, about 8 mins.", "Add garlic, salt, pepper. Stir in peas. Cook 2 more mins.", "Serve mince over potatoes."]
+  }, {
+    name: "Salmon & Veggies",
+    emoji: "🐟",
+    time: "25 min",
+    tags: ["maintain", "cut"],
+    ingredients: ["150g salmon fillet", "Mixed vegetables (peppers, courgette, onion)", "Lemon", "Olive oil", "Salt, pepper, garlic powder"],
+    steps: ["Preheat oven to 200°C.", "Chop vegetables, toss with olive oil, salt, pepper. Spread on baking tray.", "Place salmon on tray. Season with salt, pepper, garlic powder, squeeze of lemon.", "Roast everything for 18-20 mins until salmon flakes easily.", "Serve with extra lemon squeezed over."]
+  }, {
+    name: "Greek Yogurt Bowl",
+    emoji: "🥣",
+    time: "5 min",
+    tags: ["maintain", "cut"],
+    ingredients: ["200g Greek yogurt (full fat or low fat)", "Handful of berries", "1 tsp honey", "2 tbsp granola"],
+    steps: ["Spoon yogurt into a bowl.", "Top with berries.", "Drizzle honey over.", "Add granola last so it stays crunchy.", "Eat immediately."]
+  }, {
+    name: "Cottage Cheese Toast",
+    emoji: "🍞",
+    time: "5 min",
+    tags: ["maintain", "cut"],
+    ingredients: ["2 slices wholegrain bread", "150g cottage cheese", "1 tomato", "Salt, pepper", "Optional: chilli flakes"],
+    steps: ["Toast the bread.", "Spread cottage cheese generously on each slice.", "Slice tomato and lay on top.", "Season with salt, pepper, and chilli flakes if using.", "Eat immediately."]
+  }, {
+    name: "Scrambled Eggs & Toast",
+    emoji: "🍳",
+    time: "8 min",
+    tags: ["bulk", "maintain"],
+    ingredients: ["4 eggs", "Splash of milk", "2 slices wholegrain toast", "Butter", "Salt, pepper", "Optional: cheese"],
+    steps: ["Crack eggs into bowl, add milk, salt, pepper. Whisk well.", "Heat pan on medium-low, add small knob of butter.", "Pour in eggs. Let sit 20 seconds, then slowly fold with spatula.", "Remove from heat while still slightly wet — residual heat finishes them.", "Toast bread, serve eggs on top. Add cheese if bulking."]
+  }, {
+    name: "Peanut Butter Banana Shake",
+    emoji: "🥜",
+    time: "3 min",
+    tags: ["bulk"],
+    ingredients: ["1 scoop protein powder", "1 banana", "1 tbsp peanut butter", "300ml whole milk", "4 ice cubes"],
+    steps: ["Add all ingredients to blender.", "Blend on high for 45 seconds until smooth.", "Taste — add honey if you want sweeter.", "Drink immediately post-workout."]
+  }, {
+    name: "Turkey & Avocado Wrap",
+    emoji: "🌯",
+    time: "7 min",
+    tags: ["maintain", "cut"],
+    ingredients: ["1 wholegrain wrap", "100g sliced turkey breast", "½ avocado", "Lettuce leaves", "1 tsp mustard or hot sauce", "Salt, pepper"],
+    steps: ["Lay wrap flat. Spread mustard across the centre.", "Layer lettuce, then turkey slices.", "Slice avocado and lay on top. Season with salt and pepper.", "Fold sides in, roll tightly. Slice in half diagonally.", "Eat immediately or wrap in foil to take with you."]
+  }, {
+    name: "Overnight Oats",
+    emoji: "🥣",
+    time: "5 min prep",
+    tags: ["bulk", "maintain"],
+    ingredients: ["80g rolled oats", "250ml milk", "1 tbsp chia seeds", "1 tbsp honey", "Berries or banana to top"],
+    steps: ["Add oats, milk, chia seeds, and honey to a jar or container.", "Stir well so everything is combined.", "Seal and refrigerate overnight (or minimum 4 hours).", "In the morning, top with fruit and eat cold.", "Optional: add protein powder to boost protein content."]
+  }],
+  byGoal: {
+    bulk: [{
+      name: "Mass Oats",
+      emoji: "🥣",
+      time: "5 min",
+      ingredients: ["100g oats", "2 scoops protein powder", "1 tbsp peanut butter", "1 banana", "300ml whole milk"],
+      steps: ["Add oats and milk to bowl. Microwave 2-3 mins, stirring halfway.", "Stir in protein powder while hot.", "Top with sliced banana and peanut butter.", "Optional: add a drizzle of honey. Eat while warm."]
+    }, {
+      name: "Pasta Bolognese",
+      emoji: "🍝",
+      time: "30 min",
+      ingredients: ["200g pasta", "200g beef mince", "1 can chopped tomatoes", "1 onion", "2 garlic cloves", "Salt, pepper, Italian herbs", "Parmesan to serve"],
+      steps: ["Boil pasta in salted water per packet instructions.", "Dice onion and garlic. Fry in oil for 3 mins.", "Add beef mince, cook until browned, about 8 mins. Drain excess fat.", "Add chopped tomatoes, herbs, salt, pepper. Simmer 10 mins.", "Drain pasta, mix with sauce. Top with parmesan."]
+    }, {
+      name: "Full Breakfast",
+      emoji: "🍳",
+      time: "20 min",
+      ingredients: ["4 eggs", "3 rashers bacon", "1 can baked beans", "2 slices toast", "1 tomato", "Butter"],
+      steps: ["Fry bacon in dry pan on medium-high, 3-4 mins each side.", "In same pan, fry eggs in bacon fat sunny side up, 3 mins.", "Heat beans in small saucepan, stirring occasionally.", "Halve tomato, fry cut-side down for 3 mins.", "Toast bread, butter it. Serve everything together."]
+    }, {
+      name: "Tuna Pasta Bake",
+      emoji: "🍝",
+      time: "35 min",
+      ingredients: ["200g pasta", "2 cans tuna", "1 can cream of mushroom soup", "100g grated cheese", "Salt, pepper", "Optional: peas"],
+      steps: ["Cook pasta in salted boiling water per packet. Drain, save a cup of pasta water.", "Mix drained tuna, soup, and peas in a baking dish.", "Add pasta, stir everything together. Add splash of pasta water if too thick.", "Top with grated cheese.", "Bake at 190°C for 20 mins until golden and bubbling."]
+    }, {
+      name: "Rice & Mince Bowl",
+      emoji: "🍚",
+      time: "25 min",
+      ingredients: ["150g beef or chicken mince", "150g rice", "1 onion", "2 garlic cloves", "Soy sauce", "Sesame oil", "Spring onion"],
+      steps: ["Cook rice in salted water 18 mins. Drain.", "Dice onion and garlic. Fry in oil 3 mins.", "Add mince, break apart. Cook until browned, 8 mins.", "Add 2 tbsp soy sauce and 1 tsp sesame oil. Stir.", "Serve mince over rice. Top with sliced spring onion."]
+    }, {
+      name: "Peanut Butter Oats",
+      emoji: "🥜",
+      time: "5 min",
+      ingredients: ["100g oats", "300ml whole milk", "2 tbsp peanut butter", "1 banana", "1 tsp honey", "Pinch of salt"],
+      steps: ["Combine oats, milk, and salt in saucepan.", "Cook on medium heat stirring for 4-5 mins until thick.", "Stir in peanut butter off the heat.", "Pour into bowl, top with sliced banana and honey.", "Eat immediately while warm."]
+    }],
+    cut: [{
+      name: "Chicken Salad",
+      emoji: "🥗",
+      time: "15 min",
+      ingredients: ["150g chicken breast", "Mixed salad greens", "½ cucumber", "1 tomato", "1 tbsp olive oil", "1 tsp lemon juice", "Salt, pepper"],
+      steps: ["Season chicken with salt and pepper. Pan-fry in a tiny bit of oil, 6 mins each side.", "While chicken cooks, chop cucumber and tomato.", "Mix olive oil and lemon juice for dressing.", "Slice chicken. Combine all vegetables in bowl.", "Top with chicken, drizzle dressing over."]
+    }, {
+      name: "Veggie Stir Fry",
+      emoji: "🥦",
+      time: "20 min",
+      ingredients: ["Mixed vegetables (broccoli, peppers, carrot, snap peas)", "2 eggs or 100g tofu", "1 tbsp soy sauce", "1 tsp sesame oil", "Garlic, ginger", "50g rice (optional, small portion)"],
+      steps: ["If using rice, cook it first.", "Heat pan or wok on high. Add tiny bit of oil.", "Add garlic and ginger, stir 30 seconds.", "Add hard vegetables first (carrot, broccoli), stir fry 3 mins.", "Add soft veg (peppers, peas), cook 2 mins more.", "Push veg aside, scramble eggs or add tofu. Mix everything.", "Add soy sauce and sesame oil. Toss and serve."]
+    }, {
+      name: "Protein Smoothie",
+      emoji: "🥤",
+      time: "5 min",
+      ingredients: ["1 scoop protein powder", "Handful of spinach", "150g frozen berries", "200ml water or almond milk", "Optional: ½ banana"],
+      steps: ["Add liquid to blender first.", "Add spinach, berries, and protein powder.", "Blend on high for 30-45 seconds until smooth.", "Taste — add banana if you want it sweeter.", "Drink immediately."]
+    }, {
+      name: "Tuna Salad Lettuce Wraps",
+      emoji: "🥗",
+      time: "10 min",
+      ingredients: ["2 cans tuna in water", "Large lettuce leaves (iceberg or romaine)", "½ cucumber", "1 celery stalk", "1 tbsp light mayo or Greek yogurt", "Lemon juice", "Salt, pepper"],
+      steps: ["Drain tuna. Flake into bowl.", "Dice cucumber and celery finely. Add to tuna.", "Mix in mayo or yogurt, squeeze of lemon, salt and pepper.", "Spoon mixture into lettuce leaves — use as cups.", "Eat immediately. Under 300 calories total."]
+    }, {
+      name: "Egg White Omelette",
+      emoji: "🥚",
+      time: "8 min",
+      ingredients: ["5 egg whites (or carton)", "Handful spinach", "½ red pepper, diced", "30g feta cheese", "Salt, pepper", "Cooking spray"],
+      steps: ["Whisk egg whites with salt and pepper.", "Spray pan with cooking spray, heat on medium.", "Add peppers, cook 2 mins. Add spinach, wilt 1 min.", "Pour egg whites over vegetables. Cook until edges set.", "Crumble feta on top, fold in half. Serve immediately."]
+    }, {
+      name: "Greek Chicken Bowl",
+      emoji: "🍗",
+      time: "20 min",
+      ingredients: ["150g chicken breast", "½ cucumber", "Cherry tomatoes", "Red onion", "50g feta cheese", "Kalamata olives", "Olive oil, lemon, oregano"],
+      steps: ["Season chicken with oregano, salt, pepper. Cook in pan 6 mins each side.", "Chop cucumber, halve tomatoes, slice red onion thinly.", "Combine vegetables in bowl.", "Slice chicken and add on top.", "Drizzle olive oil and lemon over everything. Crumble feta on top."]
+    }],
+    maintain: [{
+      name: "Rice Bowl",
+      emoji: "🍚",
+      time: "20 min",
+      ingredients: ["150g rice", "Any protein (chicken, tuna, egg, tofu)", "Roasted or steamed vegetables", "Sauce of choice (soy, hot sauce, yogurt)"],
+      steps: ["Cook rice in salted water, 18 mins. Drain.", "Cook your chosen protein simply — pan fry or boil.", "Steam or microwave vegetables 3-4 mins.", "Assemble in bowl: rice base, protein on top, veg on side.", "Add sauce and any seasoning you like."]
+    }, {
+      name: "Wholegrain Wrap",
+      emoji: "🌯",
+      time: "10 min",
+      ingredients: ["1 wholegrain wrap", "100g cooked chicken or tuna", "½ avocado", "Salad leaves", "1 tbsp hummus or yogurt sauce", "Salt, pepper"],
+      steps: ["Lay wrap flat. Spread hummus or sauce across the centre.", "Layer salad leaves down the middle.", "Add chicken or tuna, sliced avocado.", "Season with salt and pepper.", "Fold the sides in, roll tightly from bottom. Cut in half diagonally."]
+    }, {
+      name: "Lentil Soup",
+      emoji: "🍲",
+      time: "30 min",
+      ingredients: ["200g red lentils", "1 onion", "2 garlic cloves", "1 can chopped tomatoes", "1 tsp cumin", "1 tsp paprika", "Salt, pepper", "Olive oil", "Optional: lemon juice"],
+      steps: ["Dice onion and garlic. Fry in olive oil on medium for 4 mins.", "Add cumin and paprika, stir 1 min until fragrant.", "Add lentils, chopped tomatoes, and 600ml water.", "Bring to boil, reduce heat. Simmer 20 mins stirring occasionally until thick.", "Season with salt, pepper, squeeze of lemon. Serve with bread."]
+    }, {
+      name: "Stir Fry Noodles",
+      emoji: "🍜",
+      time: "20 min",
+      ingredients: ["150g egg noodles", "150g chicken or tofu", "Mixed veg (broccoli, carrot, pepper)", "2 tbsp soy sauce", "1 tbsp oyster sauce", "Garlic, ginger", "Sesame oil"],
+      steps: ["Cook noodles per packet. Drain and set aside.", "Stir fry garlic and ginger in hot oiled pan 30 seconds.", "Add protein, cook until done (5-7 mins for chicken).", "Add vegetables, stir fry 3-4 mins on high heat.", "Add noodles, soy sauce, oyster sauce. Toss everything together.", "Drizzle sesame oil. Serve immediately."]
+    }, {
+      name: "Baked Potato & Filling",
+      emoji: "🥔",
+      time: "60 min",
+      ingredients: ["2 medium potatoes", "1 can tuna or 100g cheese", "2 tbsp Greek yogurt or sour cream", "Spring onion", "Salt, pepper"],
+      steps: ["Pierce potatoes all over with fork. Rub with oil and salt.", "Microwave 10-12 mins (turning halfway) OR bake 200°C for 50 mins.", "Test with knife — should go in easily.", "Slice open, fluff inside with fork.", "Top with tuna or cheese, dollop of yogurt, spring onion."]
+    }, {
+      name: "Vegetable Omelette",
+      emoji: "🍳",
+      time: "12 min",
+      ingredients: ["3 eggs", "½ onion", "½ pepper", "Handful mushrooms", "Salt, pepper", "Oil or butter", "Optional: cheese"],
+      steps: ["Dice onion, pepper, and mushrooms.", "Fry vegetables in oil on medium 5 mins until soft.", "Whisk eggs with salt and pepper. Pour over vegetables.", "Cook on medium-low without stirring until edges set, about 3 mins.", "Add cheese if using, fold in half. Slide onto plate."]
+    }, {
+      name: "Chicken Fried Rice",
+      emoji: "🍚",
+      time: "20 min",
+      ingredients: ["200g leftover cooked rice (cold)", "150g chicken breast or leftovers", "2 eggs", "Frozen peas and corn", "Soy sauce", "Garlic", "Spring onion", "Sesame oil"],
+      steps: ["Dice chicken, cook in oiled pan until done. Set aside.", "In same pan on high heat, add garlic. Fry 30 seconds.", "Add cold rice — break up any clumps. Stir fry 3 mins.", "Push rice aside. Scramble eggs in empty space, then mix in.", "Add chicken, peas, corn. Pour over 2 tbsp soy sauce.", "Finish with sesame oil and spring onion."]
+    }]
+  },
+  byStat: {
+    strength: {
+      tip: "Aim for 1.6–2.2g protein per kg of bodyweight daily. Eat within 30 mins post-workout.",
+      foods: ["Chicken", "Eggs", "Beef", "Cottage cheese", "Tuna", "Whey protein"]
+    },
+    intelligence: {
+      tip: "Omega-3s, complex carbs, and hydration improve focus and memory significantly.",
+      foods: ["Salmon", "Walnuts", "Blueberries", "Dark chocolate", "Avocado", "Green tea"]
+    },
+    endurance: {
+      tip: "Avoid caffeine after 2pm. Magnesium-rich foods improve sleep and recovery.",
+      foods: ["Banana", "Almonds", "Spinach", "Oats", "Chamomile tea", "Dark chocolate"]
+    },
+    mind: {
+      tip: "Gut health directly affects mood. Fermented foods and fibre support mental wellbeing.",
+      foods: ["Greek yogurt", "Kefir", "Berries", "Dark leafy greens", "Oats", "Legumes"]
+    },
+    vitality: {
+      tip: "Drink water first thing in the morning. Eat whole foods, cook at home as much as possible.",
+      foods: ["Water", "Vegetables", "Fruit", "Whole grains", "Legumes", "Olive oil"]
+    },
+    social: {
+      tip: "Sharing home-cooked meals builds stronger bonds than eating out. Cook for others occasionally.",
+      foods: ["Anything cooked from scratch", "Shared plates", "New cuisines you explore together"]
+    },
+    creativity: {
+      tip: "Consistent nutrition beats perfect nutrition. Don't skip meals — low blood sugar kills creativity.",
+      foods: ["Nuts", "Seeds", "Dark chocolate", "Eggs", "Green tea", "Berries"]
+    }
+  }
+};
+// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
+
+function HabitTracker() {
+  const [habitChecks, setHabitChecks] = (0, React.useState)({}); // { "sh_teeth_am:2024-01-01": true }
+  const [achievements, setAchievements] = (0, React.useState)({}); // { "a1": true }
+  const [questLog, setQuestLog] = (0, React.useState)(null); // { date, quests: [{id,name,stat,xp,done}] }
+  const [statGains, setStatGains] = (0, React.useState)({}); // { "strength": 3.2 } cumulative gains
+  const [view, setView] = (0, React.useState)("status");
+  const [loaded, setLoaded] = (0, React.useState)(false);
+  const [toast, setToast] = (0, React.useState)(null);
+  const [levelUpAnim, setLevelUpAnim] = (0, React.useState)(null);
+  const [rankUpAnim, setRankUpAnim] = (0, React.useState)(null); // {rank, title, color}
+  const [statFlash, setStatFlash] = (0, React.useState)(null);
+  const [questLoading, setQuestLoading] = (0, React.useState)(false);
+  const [achievFilter, setAchievFilter] = (0, React.useState)("all");
+  const [penalty, setPenalty] = (0, React.useState)(null);
+  const [streaks, setStreaks] = (0, React.useState)({});
+  const [dailyHabits, setDailyHabits] = (0, React.useState)([]);
+  const [habitsLoading, setHabitsLoading] = (0, React.useState)(false);
+  const [nutritionGoal, setNutritionGoal] = (0, React.useState)("maintain");
+  const [nutritionTab, setNutritionTab] = (0, React.useState)("postWorkout");
+  const [workoutLocation, setWorkoutLocation] = (0, React.useState)(null); // null | "gym" | "home"
+  const [expandedExercise, setExpandedExercise] = (0, React.useState)(null);
+  const [customStreaks, setCustomStreaks] = (0, React.useState)([]);
+  const [newStreakName, setNewStreakName] = (0, React.useState)("");
+  const [newStreakEmoji, setNewStreakEmoji] = (0, React.useState)("🔥");
+  const [expandedStreak, setExpandedStreak] = (0, React.useState)(null);
+  const [manualDays, setManualDays] = (0, React.useState)("");
+  const [timeLeft, setTimeLeft] = (0, React.useState)(timeUntilMidnight());
+  const timerRef = (0, React.useRef)(null);
+
+  // Tick timer
+  (0, React.useEffect)(() => {
+    timerRef.current = setInterval(() => setTimeLeft(timeUntilMidnight()), 60000);
+    return () => clearInterval(timerRef.current);
+  }, []);
+
+  // Load storage
+  (0, React.useEffect)(() => {
+    async function load() {
+      try {
+        const hc = await window.storage.get("habitChecks");
+        const ac = await window.storage.get("achievements");
+        const ql = await window.storage.get("questLog");
+        const sg = await window.storage.get("statGains");
+        if (hc) setHabitChecks(JSON.parse(hc.value));
+        if (ac) setAchievements(JSON.parse(ac.value));
+        if (sg) setStatGains(JSON.parse(sg.value));
+        if (ql) {
+          const saved = JSON.parse(ql.value);
+          if (saved.date === today()) setQuestLog(saved);
+        }
+        const pen = await window.storage.get("penalty");
+        const str = await window.storage.get("streaks");
+        const cs = await window.storage.get("customStreaks");
+        const dh = await window.storage.get("dailyHabits");
+        if (pen) setPenalty(JSON.parse(pen.value));
+        if (str) setStreaks(JSON.parse(str.value));
+        if (cs) setCustomStreaks(JSON.parse(cs.value));
+        if (dh) {
+          const saved = JSON.parse(dh.value);
+          if (saved.date === today()) {
+            setDailyHabits(saved.habits);
+            SYSTEM_HABITS = saved.habits;
+          }
+        }
+      } catch (_) {}
+      setLoaded(true);
+    }
+    async function init() {
+      await load();
+      // Auto-generate daily habits if stale or missing
+      try {
+        const dh = await window.storage.get("dailyHabits");
+        const saved = JSON.parse(dh.value);
+        if (saved.date !== today()) generateDailyHabits();
+      } catch (_) {
+        generateDailyHabits();
+      }
+    }
+    init();
+  }, []);
+  (0, React.useEffect)(() => {
+    if (loaded) window.storage.set("habitChecks", JSON.stringify(habitChecks));
+  }, [habitChecks, loaded]);
+  (0, React.useEffect)(() => {
+    if (loaded) window.storage.set("achievements", JSON.stringify(achievements));
+  }, [achievements, loaded]);
+  (0, React.useEffect)(() => {
+    if (loaded) window.storage.set("questLog", JSON.stringify(questLog));
+  }, [questLog, loaded]);
+  (0, React.useEffect)(() => {
+    if (loaded) window.storage.set("statGains", JSON.stringify(statGains));
+  }, [statGains, loaded]);
+  (0, React.useEffect)(() => {
+    if (loaded) window.storage.set("penalty", JSON.stringify(penalty));
+  }, [penalty, loaded]);
+  (0, React.useEffect)(() => {
+    if (loaded && dailyHabits.length > 0) window.storage.set("dailyHabits", JSON.stringify({
+      date: today(),
+      habits: dailyHabits
+    }));
+  }, [dailyHabits, loaded]);
+  (0, React.useEffect)(() => {
+    if (loaded) window.storage.set("streaks", JSON.stringify(streaks));
+  }, [streaks, loaded]);
+  (0, React.useEffect)(() => {
+    if (loaded) window.storage.set("customStreaks", JSON.stringify(customStreaks));
+  }, [customStreaks, loaded]);
+  function showToast(msg, color = "#6EE7B7") {
+    setToast({
+      msg,
+      color
+    });
+    setTimeout(() => setToast(null), 2500);
+  }
+
+  // ── Compute XP ──
+  function computeXp() {
+    let xp = 0;
+    // Habit XP
+    Object.entries(habitChecks).forEach(([k, v]) => {
+      if (v) xp += XP_PER_HABIT;
+    });
+    // Quest XP
+    if (questLog) questLog.quests.forEach(q => {
+      if (q.done) xp += q.xp;
+    });
+    // Achievement XP
+    ACHIEVEMENTS_DATA.forEach(a => {
+      if (achievements[a.id]) xp += a.xp;
+    });
+    return xp;
+  }
+
+  // ── Compute stats ──
+  function computeStats() {
+    const result = {};
+    Object.keys(STATS).forEach(k => {
+      result[k] = STATS[k].base + (statGains[k] || 0);
+    });
+    return result;
+  }
+
+  // ── Streak helpers ──
+  function getStreak(habitId) {
+    return streaks[habitId] || 0;
+  }
+  function updateStreak(habitId, checked) {
+    setStreaks(prev => {
+      if (checked) return {
+        ...prev,
+        [habitId]: (prev[habitId] || 0) + 1
+      };
+      return {
+        ...prev,
+        [habitId]: 0
+      };
+    });
+  }
+
+  // ── Check penalty at end of day (called on load if yesterday had data) ──
+  function checkPenalty(checks) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yKey = yesterday.toISOString().slice(0, 10);
+    const yDone = SYSTEM_HABITS.filter(h => checks[`${h.id}:${yKey}`]).length;
+    const threshold = Math.ceil(SYSTEM_HABITS.length / 2);
+    if (yDone > 0 && yDone < threshold) {
+      // missed more than half — issue penalty
+      const weakStat = "endurance";
+      setPenalty({
+        active: true,
+        date: yKey,
+        stat: weakStat,
+        debuffAmt: 1.0,
+        quest: {
+          name: "Penalty Quest: Redemption",
+          desc: "Complete 10 minutes of exercise, drink 1L water, and journal one sentence — all before midnight.",
+          stat: weakStat,
+          xp: 0,
+          id: "penalty_quest",
+          done: false
+        }
+      });
+    }
+  }
+
+  // ── Complete penalty quest ──
+  function completePenalty() {
+    setPenalty(prev => prev ? {
+      ...prev,
+      quest: {
+        ...prev.quest,
+        done: true
+      },
+      active: false
+    } : null);
+    showToast("⚡ Penalty cleared! Debuff removed.", "#6EE7B7");
+  }
+
+  // ── Toggle habit ──
+  function toggleHabit(habitId) {
+    const key = `${habitId}:${today()}`;
+    const wasOff = !habitChecks[key];
+    const prevLevel = getLevelFromXp(computeXp());
+    const habit = SYSTEM_HABITS.find(h => h.id === habitId);
+    setHabitChecks(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+    updateStreak(habitId, wasOff);
+    if (wasOff && habit) {
+      setStatGains(prev => ({
+        ...prev,
+        [habit.stat]: parseFloat(((prev[habit.stat] || 0) + STAT_GROWTH).toFixed(2))
+      }));
+      setTimeout(() => {
+        const newLevel = getLevelFromXp(computeXp());
+        if (newLevel > prevLevel) {
+          setLevelUpAnim(newLevel);
+          if (RANK_UP_LEVELS.has(newLevel)) {
+            const r = getRank(newLevel);
+            setTimeout(() => {
+              setRankUpAnim(r);
+              setTimeout(() => setRankUpAnim(null), 4000);
+            }, 500);
+          }
+          setTimeout(() => setLevelUpAnim(null), 3000);
+        } else {
+          setStatFlash(habit.stat);
+          setTimeout(() => setStatFlash(null), 800);
+          showToast(`${STATS[habit.stat].emoji} +${STAT_GROWTH} ${STATS[habit.stat].label}`, STATS[habit.stat].color);
+        }
+      }, 50);
+    } else if (!wasOff && habit) {
+      setStatGains(prev => ({
+        ...prev,
+        [habit.stat]: parseFloat(Math.max(0, (prev[habit.stat] || 0) - STAT_GROWTH).toFixed(2))
+      }));
+    }
+  }
+
+  // ── Toggle quest ──
+  function toggleQuest(questId) {
+    if (!questLog) return;
+    const quest = questLog.quests.find(q => q.id === questId);
+    if (!quest) return;
+    const wasOff = !quest.done;
+    const prevLevel = getLevelFromXp(computeXp());
+    setQuestLog(prev => ({
+      ...prev,
+      quests: prev.quests.map(q => q.id === questId ? {
+        ...q,
+        done: !q.done
+      } : q)
+    }));
+    if (wasOff) {
+      setStatGains(prev => ({
+        ...prev,
+        [quest.stat]: parseFloat(((prev[quest.stat] || 0) + STAT_GROWTH * 2).toFixed(2))
+      }));
+      setTimeout(() => {
+        const newLevel = getLevelFromXp(computeXp());
+        if (newLevel > prevLevel) {
+          setLevelUpAnim(newLevel);
+          if (RANK_UP_LEVELS.has(newLevel)) {
+            const r = getRank(newLevel);
+            setTimeout(() => {
+              setRankUpAnim(r);
+              setTimeout(() => setRankUpAnim(null), 4000);
+            }, 500);
+          }
+          setTimeout(() => setLevelUpAnim(null), 3000);
+        } else {
+          showToast(`⚡ Quest done! +${quest.xp} XP`, "#FCD34D");
+        }
+      }, 50);
+    } else {
+      setStatGains(prev => ({
+        ...prev,
+        [quest.stat]: parseFloat(Math.max(0, (prev[quest.stat] || 0) - STAT_GROWTH * 2).toFixed(2))
+      }));
+    }
+  }
+
+  // ── Toggle achievement ──
+  function toggleAchievement(achId) {
+    const ach = ACHIEVEMENTS_DATA.find(a => a.id === achId);
+    if (!ach) return;
+    const wasOff = !achievements[achId];
+    const prevLevel = getLevelFromXp(computeXp());
+    setAchievements(prev => ({
+      ...prev,
+      [achId]: !prev[achId]
+    }));
+    if (wasOff) {
+      setStatGains(prev => ({
+        ...prev,
+        [ach.stat]: parseFloat(((prev[ach.stat] || 0) + ach.xp * 0.01).toFixed(2))
+      }));
+      setTimeout(() => {
+        const newLevel = getLevelFromXp(computeXp());
+        if (newLevel > prevLevel) {
+          setLevelUpAnim(newLevel);
+          if (RANK_UP_LEVELS.has(newLevel)) {
+            const r = getRank(newLevel);
+            setTimeout(() => {
+              setRankUpAnim(r);
+              setTimeout(() => setRankUpAnim(null), 4000);
+            }, 500);
+          }
+          setTimeout(() => setLevelUpAnim(null), 3000);
+        } else {
+          showToast(`🏆 ${ach.title}! +${ach.xp} XP`, TIER_CONFIG[ach.tier].color);
+        }
+      }, 50);
+    } else {
+      setStatGains(prev => ({
+        ...prev,
+        [ach.stat]: parseFloat(Math.max(0, (prev[ach.stat] || 0) - ach.xp * 0.01).toFixed(2))
+      }));
+    }
+  }
+
+  // ── Generate daily habits ──
+  async function generateDailyHabits() {
+    setHabitsLoading(true);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 400,
+          system: `Generate exactly 5 daily habit ideas for someone in military service in Estonia who wants to self-improve. Reply ONLY with a JSON array of 5 objects: { "name": short habit name under 5 words, "stat": one of strength/intelligence/endurance/mind/vitality/social/creativity, "emoji": one emoji, "period": morning/afternoon/evening }. No markdown, no explanation. Make them varied, specific, and different from: brushing teeth, drinking water, no porn, sleep before midnight.`,
+          messages: [{
+            role: "user",
+            content: `Today: ${today()}. Generate 5 fresh habits. Be creative and specific.`
+          }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text?.trim() || "[]";
+      const clean = text.replace(/\`\`\`json|\`\`\`/g, "").trim();
+      const aiHabits = JSON.parse(clean);
+      const habits = getDailyHabits(aiHabits);
+      SYSTEM_HABITS = habits;
+      setDailyHabits(habits);
+    } catch (_) {
+      const habits = getDailyHabits([]);
+      SYSTEM_HABITS = habits;
+      setDailyHabits(habits);
+    }
+    setHabitsLoading(false);
+  }
+
+  // ── Generate quests ──
+  async function generateQuests() {
+    if (questLog && questLog.date === today() && questLog.locked) {
+      showToast("Quest limit reached for today. Come back tomorrow!", "#F87171");
+      return;
+    }
+    setQuestLoading(true);
+    const statVals = computeStats();
+    const weakest = Object.entries(statVals).sort((a, b) => a[1] - b[1]).slice(0, 3).map(([k]) => STATS[k].label).join(", ");
+    const currentRank = getRank(getLevelFromXp(computeXp()));
+    const rankDifficulty = {
+      "E": "very easy — 10 push-ups, 5 min walk, drink water",
+      "D": "easy — 20 push-ups, 15 min exercise, read 10 pages",
+      "C": "moderate — 30 push-ups, 30 min workout, read 20 pages, 1 hour study",
+      "B": "hard — 50 push-ups, 45 min workout, 2 hour study, cold shower",
+      "A": "very hard — 100 push-ups, 1 hour run, 3 hour study, full day no phone",
+      "S": "extreme — 5km run, 2 hour gym, 4 hour deep work, meditation",
+      "SS": "legendary — 10km run, 3 hour gym, full day discipline protocol",
+      "SSS": "inhuman — marathon prep level, 12 hour productivity day",
+      "???": "transcendent — feats beyond normal human willpower"
+    }[currentRank.rank] || "moderate";
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 700,
+          system: `You assign daily quests for a solo leveling style productivity app. The user is in military service in Estonia. Reply ONLY with a JSON array of exactly 6 quest objects. Each: { "id": "q1"-"q6", "name": short name under 6 words, "desc": one clear sentence, "stat": one of strength/intelligence/endurance/mind/vitality/social/creativity, "xp": number scaled to difficulty }. No markdown, no explanation.`,
+          messages: [{
+            role: "user",
+            content: `Rank: ${currentRank.rank}. Difficulty level: ${rankDifficulty}. Weakest stats: ${weakest}. Today: ${today()}. Generate 6 quests appropriate for this rank. Scale XP to difficulty (Rank E: 20-40 XP, Rank S+: 80-150 XP).`
+          }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text?.trim() || "[]";
+      const clean = text.replace(/```json|```/g, "").trim();
+      const quests = JSON.parse(clean).map(q => ({
+        ...q,
+        done: false
+      }));
+      setQuestLog({
+        date: today(),
+        quests,
+        locked: true
+      });
+    } catch (_) {
+      const fallback = [{
+        id: "q1",
+        name: "20-minute workout",
+        desc: "Do any form of exercise for at least 20 minutes.",
+        stat: "strength",
+        xp: 40,
+        done: false
+      }, {
+        id: "q2",
+        name: "Read 20 pages",
+        desc: "Read 20 pages of any book or educational material.",
+        stat: "intelligence",
+        xp: 35,
+        done: false
+      }, {
+        id: "q3",
+        name: "Sleep before midnight",
+        desc: "Be in bed with lights off before midnight tonight.",
+        stat: "endurance",
+        xp: 30,
+        done: false
+      }, {
+        id: "q4",
+        name: "10-min meditation",
+        desc: "Sit quietly and focus on your breath for 10 minutes.",
+        stat: "mind",
+        xp: 35,
+        done: false
+      }, {
+        id: "q5",
+        name: "Drink 2L water",
+        desc: "Track and finish 2 litres of water today.",
+        stat: "vitality",
+        xp: 25,
+        done: false
+      }, {
+        id: "q6",
+        name: "Message a friend",
+        desc: "Reach out to someone you haven't talked to recently.",
+        stat: "social",
+        xp: 35,
+        done: false
+      }];
+      setQuestLog({
+        date: today(),
+        quests: fallback,
+        locked: true
+      });
+    }
+    setQuestLoading(false);
+  }
+  const totalXp = computeXp();
+  const {
+    level,
+    current,
+    needed,
+    pct
+  } = getXpProgress(totalXp);
+  const {
+    rank,
+    color: rankColor
+  } = getRank(level);
+  const statValues = computeStats();
+  const todayKey = today();
+  const unlockedCount = ACHIEVEMENTS_DATA.filter(a => achievements[a.id]).length;
+  const questsDone = questLog ? questLog.quests.filter(q => q.done).length : 0;
+  const activeHabits = dailyHabits.length > 0 ? dailyHabits : getDailyHabits([]);
+  const habitsDoneToday = activeHabits.filter(h => habitChecks[`${h.id}:${todayKey}`]).length;
+  if (!loaded) return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      height: "100vh",
+      background: "#07070e",
+      color: "#333",
+      fontFamily: "system-ui"
+    }
+  }, "Initializing system…");
+  const TABS = [{
+    id: "status",
+    label: "Status"
+  }, {
+    id: "habits",
+    label: "Habits"
+  }, {
+    id: "quests",
+    label: "Quests"
+  }, {
+    id: "achievements",
+    label: "Trophies"
+  }, {
+    id: "nutrition",
+    label: "Nutrition"
+  }, {
+    id: "workout",
+    label: "Workout"
+  }, {
+    id: "streaks",
+    label: "Streaks"
+  }];
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      minHeight: "100vh",
+      background: "#07070e",
+      color: "#e0e0f0",
+      fontFamily: "'Inter',system-ui,sans-serif",
+      paddingBottom: 80
+    }
+  }, levelUpAnim && /*#__PURE__*/React.createElement("div", {
+    onClick: () => setLevelUpAnim(null),
+    style: {
+      position: "fixed",
+      inset: 0,
+      zIndex: 100,
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "rgba(0,0,0,0.95)",
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 72,
+      marginBottom: 8
+    }
+  }, "⭐"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      letterSpacing: "0.3em",
+      color: "#444",
+      textTransform: "uppercase",
+      marginBottom: 10
+    }
+  }, "Level Up"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 52,
+      fontWeight: 900,
+      color: "#FCD34D",
+      letterSpacing: "-0.03em"
+    }
+  }, "Level ", levelUpAnim), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 20,
+      fontSize: 12,
+      color: "#333"
+    }
+  }, "Tap to continue")), rankUpAnim && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 99,
+      padding: "0 16px",
+      pointerEvents: "none"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxWidth: 680,
+      margin: "0 auto",
+      marginTop: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: `linear-gradient(135deg,#0a0a12,#1a1020)`,
+      border: `2px solid ${rankUpAnim.color}`,
+      borderRadius: 16,
+      padding: "18px 20px",
+      boxShadow: `0 0 40px ${rankUpAnim.color}40`,
+      animation: "slideDown 0.4s cubic-bezier(0.34,1.56,0.64,1)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 52,
+      height: 52,
+      borderRadius: 12,
+      background: rankUpAnim.color + "20",
+      border: `2px solid ${rankUpAnim.color}`,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 22,
+      fontWeight: 900,
+      color: rankUpAnim.color,
+      textShadow: rankUpAnim.glow ? `0 0 20px ${rankUpAnim.color}` : ""
+    }
+  }, rankUpAnim.rank)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      letterSpacing: "0.2em",
+      color: rankUpAnim.color + "80",
+      textTransform: "uppercase",
+      marginBottom: 3
+    }
+  }, "Rank Up"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 20,
+      fontWeight: 900,
+      color: rankUpAnim.color,
+      letterSpacing: "-0.01em",
+      textShadow: rankUpAnim.glow ? `0 0 30px ${rankUpAnim.color}` : ""
+    }
+  }, "Rank ", rankUpAnim.rank, " Achieved"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#5a5a7a",
+      marginTop: 2
+    }
+  }, rankUpAnim.title)))))), penalty && penalty.active && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#1a0808",
+      border: "1px solid #F87171",
+      borderRadius: 12,
+      margin: "12px 14px 0",
+      padding: "14px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 20
+    }
+  }, "⚠️"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 900,
+      color: "#F87171",
+      letterSpacing: "0.1em",
+      textTransform: "uppercase"
+    }
+  }, "Penalty Active"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "#5a3a3a",
+      marginTop: 1
+    }
+  }, "You missed more than half your habits yesterday. Stats debuffed by ", penalty.debuffAmt, "."))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#120808",
+      borderRadius: 10,
+      padding: "10px 12px",
+      marginBottom: 10,
+      border: "1px solid #2a1a1a"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: "#F87171",
+      marginBottom: 3
+    }
+  }, penalty.quest.name), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#5a3a3a",
+      lineHeight: 1.5
+    }
+  }, penalty.quest.desc)), /*#__PURE__*/React.createElement("button", {
+    onClick: completePenalty,
+    style: {
+      width: "100%",
+      background: "#F87171",
+      color: "#07070e",
+      border: "none",
+      borderRadius: 8,
+      padding: "9px",
+      cursor: "pointer",
+      fontSize: 12,
+      fontWeight: 800
+    }
+  }, "✓ I completed the penalty quest")), toast && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      bottom: 90,
+      left: "50%",
+      transform: "translateX(-50%)",
+      background: "#10101a",
+      border: `1px solid ${toast.color}50`,
+      color: toast.color,
+      padding: "9px 18px",
+      borderRadius: 20,
+      fontSize: 12,
+      fontWeight: 700,
+      zIndex: 50,
+      whiteSpace: "nowrap",
+      boxShadow: `0 0 24px ${toast.color}20`
+    }
+  }, toast.msg), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#0a0a12",
+      borderBottom: "1px solid #12121e",
+      padding: "14px 16px 10px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxWidth: 680,
+      margin: "0 auto",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: rankColor + "18",
+      border: `1px solid ${rankColor}60`,
+      color: rankColor,
+      fontWeight: 900,
+      fontSize: 11,
+      padding: "2px 8px",
+      borderRadius: 5,
+      letterSpacing: "0.12em"
+    }
+  }, "RANK ", rank), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 16,
+      fontWeight: 800
+    }
+  }, "Lv. ", level)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#12121e",
+      borderRadius: 4,
+      height: 5,
+      width: 160,
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: "100%",
+      borderRadius: 4,
+      background: `linear-gradient(90deg,${rankColor},${rankColor}66)`,
+      width: `${pct}%`,
+      transition: "width 0.5s ease",
+      boxShadow: getRank(level).glow ? `0 0 8px ${rankColor}` : ""
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: "#2a2a3a",
+      marginTop: 3
+    }
+  }, current, "/", needed, " XP · Lv.", level + 1, getNextRank(level) ? ` · Next rank: ${getNextRank(level).rank} @ Lv.${getNextRank(level).minLevel}` : "")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "right"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: "#2a2a3a",
+      letterSpacing: "0.1em",
+      textTransform: "uppercase"
+    }
+  }, "Total XP"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 24,
+      fontWeight: 900,
+      color: "#FCD34D",
+      letterSpacing: "-0.02em"
+    }
+  }, totalXp.toLocaleString())))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      borderBottom: "1px solid #12121e",
+      maxWidth: 680,
+      margin: "0 auto"
+    }
+  }, TABS.map(tab => /*#__PURE__*/React.createElement("button", {
+    key: tab.id,
+    onClick: () => setView(tab.id),
+    style: {
+      flex: 1,
+      padding: "10px 4px",
+      background: "none",
+      border: "none",
+      color: view === tab.id ? "#e0e0f0" : "#2a2a3a",
+      borderBottom: view === tab.id ? "2px solid #e0e0f0" : "2px solid transparent",
+      cursor: "pointer",
+      fontSize: 10,
+      fontWeight: 700,
+      textTransform: "uppercase",
+      letterSpacing: "0.1em",
+      transition: "color 0.15s"
+    }
+  }, tab.label))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxWidth: 680,
+      margin: "0 auto",
+      padding: "0 14px"
+    }
+  }, view === "status" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      paddingTop: 18
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#0c0c16",
+      border: "1px solid #1e1e30",
+      borderRadius: 16,
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#10101c",
+      borderBottom: "1px solid #1e1e30",
+      padding: "11px 18px",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      letterSpacing: "0.2em",
+      color: "#3a3a5a",
+      textTransform: "uppercase"
+    }
+  }, "Player Status"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "#3a3a5a"
+    }
+  }, new Date().toLocaleDateString("en-GB"))), Object.entries(STATS).map(([key, stat], idx) => {
+    const val = statValues[key],
+      isFlashing = statFlash === key,
+      barPct = Math.min(100, val / 100 * 100);
+    return /*#__PURE__*/React.createElement("div", {
+      key: key,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "10px 18px",
+        borderBottom: idx < Object.keys(STATS).length - 1 ? "1px solid #12121e" : "none",
+        background: isFlashing ? stat.color + "0a" : "transparent",
+        transition: "background 0.3s"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 22,
+        textAlign: "center",
+        fontSize: 15
+      }
+    }, stat.emoji), /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 86,
+        fontSize: 10,
+        fontWeight: 700,
+        color: "#4a4a6a",
+        letterSpacing: "0.06em"
+      }
+    }, stat.label.toUpperCase()), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        background: "#12121e",
+        borderRadius: 3,
+        height: 5,
+        overflow: "hidden"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        height: "100%",
+        borderRadius: 3,
+        background: stat.color,
+        width: `${barPct}%`,
+        transition: "width 0.5s",
+        boxShadow: isFlashing ? `0 0 10px ${stat.color}` : "none"
+      }
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 32,
+        textAlign: "right",
+        fontSize: 17,
+        fontWeight: 900,
+        color: isFlashing ? stat.color : "#e0e0f0",
+        transition: "color 0.3s"
+      }
+    }, fmt(val)));
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: "1px solid #1e1e30",
+      display: "flex"
+    }
+  }, [{
+    label: "Habits Today",
+    value: `${habitsDoneToday}/${activeHabits.length}`,
+    color: "#6EE7B7"
+  }, {
+    label: "Quests",
+    value: `${questsDone}/${questLog ? questLog.quests.length : 0}`,
+    color: "#FCD34D"
+  }, {
+    label: "Trophies",
+    value: `${unlockedCount}/${ACHIEVEMENTS_DATA.length}`,
+    color: "#C4B5FD"
+  }].map((s, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      flex: 1,
+      padding: "11px 8px",
+      textAlign: "center",
+      borderRight: i < 2 ? "1px solid #1e1e30" : "none"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 18,
+      fontWeight: 900,
+      color: s.color
+    }
+  }, s.value), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: "#2a2a3a",
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      marginTop: 2
+    }
+  }, s.label)))))), view === "habits" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      paddingTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      letterSpacing: "0.15em",
+      color: "#3a3a5a",
+      textTransform: "uppercase"
+    }
+  }, habitsLoading ? "Generating today's habits…" : "Daily Checklist"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "#3a3a5a"
+    }
+  }, habitsDoneToday, "/", activeHabits.length, " done"), /*#__PURE__*/React.createElement("button", {
+    onClick: generateDailyHabits,
+    disabled: habitsLoading,
+    style: {
+      background: "none",
+      border: "1px solid #1e1e30",
+      color: habitsLoading ? "#2a2a3a" : "#3a3a5a",
+      borderRadius: 6,
+      padding: "2px 8px",
+      cursor: habitsLoading ? "not-allowed" : "pointer",
+      fontSize: 10
+    }
+  }, habitsLoading ? "…" : "↻"))), PERIODS.map(period => {
+    const group = activeHabits.filter(h => h.period === period);
+    return /*#__PURE__*/React.createElement("div", {
+      key: period,
+      style: {
+        marginBottom: 20
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: "#3a3a5a",
+        marginBottom: 8,
+        letterSpacing: "0.08em"
+      }
+    }, PERIOD_LABELS[period]), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 5
+      }
+    }, group.map(habit => {
+      const done = !!habitChecks[`${habit.id}:${todayKey}`];
+      const stat = STATS[habit.stat];
+      return /*#__PURE__*/React.createElement("button", {
+        key: habit.id,
+        onClick: () => toggleHabit(habit.id),
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          background: done ? stat.color + "14" : "#0c0c16",
+          border: `1px solid ${done ? stat.color + "40" : "#1a1a28"}`,
+          borderRadius: 11,
+          padding: "11px 14px",
+          cursor: "pointer",
+          textAlign: "left",
+          transition: "all 0.15s"
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          width: 28,
+          height: 28,
+          borderRadius: 8,
+          background: done ? stat.color : "#14141f",
+          border: `2px solid ${done ? stat.color : stat.color + "40"}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 13,
+          color: done ? "#07070e" : "transparent",
+          fontWeight: 900,
+          flexShrink: 0,
+          transition: "all 0.15s"
+        }
+      }, "✓"), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 14
+        }
+      }, habit.emoji), /*#__PURE__*/React.createElement("div", {
+        style: {
+          flex: 1
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 13,
+          fontWeight: 600,
+          color: done ? "#e0e0f0" : "#8888aa",
+          textDecoration: done ? "line-through" : "none",
+          transition: "all 0.15s"
+        }
+      }, habit.name), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 10,
+          color: stat.color + "80",
+          marginTop: 1
+        }
+      }, stat.emoji, " ", stat.label, " +", STAT_GROWTH)), /*#__PURE__*/React.createElement("div", {
+        style: {
+          textAlign: "right"
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 10,
+          color: done ? "#FCD34D" : "#2a2a3a",
+          fontWeight: 700
+        }
+      }, "+", XP_PER_HABIT, " XP"), getStreak(habit.id) > 0 && /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 9,
+          color: "#F97316",
+          fontWeight: 700,
+          marginTop: 1
+        }
+      }, "🔥", getStreak(habit.id), "d")));
+    })));
+  })), view === "quests" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      paddingTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      letterSpacing: "0.15em",
+      color: "#3a3a5a",
+      textTransform: "uppercase"
+    }
+  }, "Daily Quests"), questLog && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "#F87171",
+      fontWeight: 700
+    }
+  }, "⏱ ", timeLeft, " left")), !questLog ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      padding: "40px 0"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 36,
+      marginBottom: 12
+    }
+  }, "⚔️"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 13,
+      color: "#3a3a5a",
+      marginBottom: 20
+    }
+  }, "No quests assigned yet.", /*#__PURE__*/React.createElement("br", null), "The system will generate 6 quests for you."), /*#__PURE__*/React.createElement("button", {
+    onClick: generateQuests,
+    disabled: questLoading,
+    style: {
+      background: "#FCD34D",
+      color: "#07070e",
+      border: "none",
+      borderRadius: 10,
+      padding: "12px 28px",
+      cursor: "pointer",
+      fontSize: 13,
+      fontWeight: 800
+    }
+  }, questLoading ? "Generating…" : "⚡ Generate Today's Quests")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#0c0c16",
+      border: "1px solid #1e1e30",
+      borderRadius: 10,
+      padding: "10px 14px",
+      marginBottom: 14,
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#3a3a5a"
+    }
+  }, questsDone, "/", questLog.quests.length, " quests completed"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, questsDone === questLog.quests.length && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "#FCD34D",
+      fontWeight: 700
+    }
+  }, "🎉 All done!"), !(questLog && questLog.locked) && /*#__PURE__*/React.createElement("button", {
+    onClick: generateQuests,
+    disabled: questLoading,
+    style: {
+      background: "none",
+      border: "1px solid #2a2a3a",
+      color: "#3a3a5a",
+      borderRadius: 6,
+      padding: "3px 10px",
+      cursor: "pointer",
+      fontSize: 10
+    }
+  }, questLoading ? "…" : "↻ New"), questLog && questLog.locked && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: "#2a2a3a"
+    }
+  }, "🔒 Locked until tomorrow"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 8
+    }
+  }, questLog.quests.map(quest => {
+    const stat = STATS[quest.stat] || STATS.mind;
+    return /*#__PURE__*/React.createElement("button", {
+      key: quest.id,
+      onClick: () => toggleQuest(quest.id),
+      style: {
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 12,
+        background: quest.done ? stat.color + "12" : "#0c0c16",
+        border: `1px solid ${quest.done ? stat.color + "40" : "#1a1a28"}`,
+        borderRadius: 12,
+        padding: "13px 14px",
+        cursor: "pointer",
+        textAlign: "left",
+        transition: "all 0.15s"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: 28,
+        height: 28,
+        borderRadius: 8,
+        background: quest.done ? stat.color : "#14141f",
+        border: `2px solid ${quest.done ? stat.color : stat.color + "40"}`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 12,
+        color: quest.done ? "#07070e" : "transparent",
+        fontWeight: 900,
+        flexShrink: 0,
+        marginTop: 1,
+        transition: "all 0.15s"
+      }
+    }, "✓"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700,
+        color: quest.done ? "#e0e0f0" : "#aaaacc",
+        textDecoration: quest.done ? "line-through" : "none",
+        marginBottom: 3
+      }
+    }, quest.name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "#3a3a5a",
+        lineHeight: 1.5
+      }
+    }, quest.desc), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 10,
+        marginTop: 6
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        color: stat.color
+      }
+    }, stat.emoji, " ", stat.label), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        color: "#FCD34D",
+        fontWeight: 700
+      }
+    }, "+", quest.xp, " XP"))));
+  })))), view === "achievements" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      paddingTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      letterSpacing: "0.15em",
+      color: "#3a3a5a",
+      textTransform: "uppercase"
+    }
+  }, unlockedCount, "/", ACHIEVEMENTS_DATA.length, " Unlocked")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      marginBottom: 16,
+      flexWrap: "wrap"
+    }
+  }, ["legendary", "epic", "rare", "common"].map(tier => {
+    const tc = TIER_CONFIG[tier];
+    const total = ACHIEVEMENTS_DATA.filter(a => a.tier === tier && !a.hidden).length;
+    const done = ACHIEVEMENTS_DATA.filter(a => a.tier === tier && !a.hidden && achievements[a.id]).length;
+    const pct = total > 0 ? done / total * 100 : 0;
+    return /*#__PURE__*/React.createElement("div", {
+      key: tier,
+      style: {
+        flex: 1,
+        minWidth: 70,
+        background: "#0c0c16",
+        border: `1px solid ${tc.border}`,
+        borderRadius: 10,
+        padding: "8px 10px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        marginBottom: 5
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        fontWeight: 700,
+        color: tc.color,
+        textTransform: "uppercase",
+        letterSpacing: "0.08em"
+      }
+    }, tc.label), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        color: tc.color,
+        fontWeight: 700
+      }
+    }, done, "/", total)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: "#12121e",
+        borderRadius: 3,
+        height: 3,
+        overflow: "hidden"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        height: "100%",
+        borderRadius: 3,
+        background: tc.color,
+        width: `${pct}%`,
+        transition: "width 0.5s"
+      }
+    })));
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 5,
+      marginBottom: 14,
+      flexWrap: "wrap"
+    }
+  }, [["all", "All"], ["unlocked", "Unlocked"], ["locked", "Locked"], ["hidden", "Hidden"]].map(([id, label]) => /*#__PURE__*/React.createElement("button", {
+    key: id,
+    onClick: () => setAchievFilter(id),
+    style: {
+      padding: "4px 12px",
+      background: achievFilter === id ? "#1e1e30" : "#0c0c16",
+      border: `1px solid ${achievFilter === id ? "#3a3a5a" : "#1a1a28"}`,
+      color: achievFilter === id ? "#e0e0f0" : "#3a3a5a",
+      borderRadius: 20,
+      cursor: "pointer",
+      fontSize: 11,
+      fontWeight: 700
+    }
+  }, label))), ["legendary", "epic", "rare", "common"].map(tier => {
+    const tierAchs = ACHIEVEMENTS_DATA.filter(a => {
+      if (a.tier !== tier) return false;
+      if (achievFilter === "unlocked") return achievements[a.id];
+      if (achievFilter === "locked") return !achievements[a.id] && !a.hidden;
+      if (achievFilter === "hidden") return a.hidden;
+      return !a.hidden || achievements[a.id];
+    });
+    if (tierAchs.length === 0) return null;
+    const tc = TIER_CONFIG[tier];
+    return /*#__PURE__*/React.createElement("div", {
+      key: tier,
+      style: {
+        marginBottom: 20
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        fontWeight: 700,
+        color: tc.color,
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
+        marginBottom: 8,
+        display: "flex",
+        alignItems: "center",
+        gap: 6
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 6,
+        height: 6,
+        borderRadius: "50%",
+        background: tc.color,
+        display: "inline-block"
+      }
+    }), tc.label, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#2a2a3a",
+        fontWeight: 400
+      }
+    }, "(", tierAchs.filter(a => achievements[a.id]).length, "/", tierAchs.length, ")")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 5
+      }
+    }, tierAchs.map(ach => {
+      const unlocked = achievements[ach.id];
+      const isHidden = ach.hidden && !unlocked;
+      return /*#__PURE__*/React.createElement("button", {
+        key: ach.id,
+        onClick: () => toggleAchievement(ach.id),
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          background: unlocked ? tc.bg : "#0c0c16",
+          border: `1px solid ${unlocked ? tc.border : "#1a1a28"}`,
+          borderRadius: 11,
+          padding: "11px 13px",
+          cursor: "pointer",
+          textAlign: "left",
+          opacity: isHidden ? 0.5 : 1,
+          transition: "all 0.15s"
+        }
+      }, /*#__PURE__*/React.createElement(TierBadge, {
+        tier: ach.tier,
+        emoji: isHidden ? "❓" : ACH_EMOJI[ach.id] || "🏆",
+        unlocked: unlocked && !isHidden,
+        size: 38
+      }), /*#__PURE__*/React.createElement("div", {
+        style: {
+          flex: 1,
+          minWidth: 0
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 12,
+          fontWeight: 700,
+          color: unlocked ? tc.color : "#5a5a7a",
+          marginBottom: 2
+        }
+      }, isHidden ? "???" : ach.title), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 10,
+          color: "#3a3a5a",
+          lineHeight: 1.4
+        }
+      }, isHidden ? "Complete to reveal" : ach.desc)), /*#__PURE__*/React.createElement("div", {
+        style: {
+          textAlign: "right",
+          flexShrink: 0
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 11,
+          fontWeight: 700,
+          color: unlocked ? "#FCD34D" : "#2a2a3a"
+        }
+      }, "+", ach.xp), /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontSize: 9,
+          color: "#2a2a3a"
+        }
+      }, "XP")));
+    })));
+  }))), view === "nutrition" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      paddingTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      marginBottom: 18
+    }
+  }, [["bulk", "💪 Bulk"], ["maintain", "⚖️ Maintain"], ["cut", "🔥 Cut"]].map(([id, label]) => /*#__PURE__*/React.createElement("button", {
+    key: id,
+    onClick: () => setNutritionGoal(id),
+    style: {
+      flex: 1,
+      padding: "8px 4px",
+      background: nutritionGoal === id ? "#1e1e30" : "#0c0c16",
+      border: `1px solid ${nutritionGoal === id ? "#3a3a5a" : "#12121e"}`,
+      color: nutritionGoal === id ? "#e0e0f0" : "#3a3a5a",
+      borderRadius: 9,
+      cursor: "pointer",
+      fontSize: 12,
+      fontWeight: 700
+    }
+  }, label))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      marginBottom: 16
+    }
+  }, [["postWorkout", "Post-Workout"], ["byGoal", "By Goal"], ["byStat", "By Stat"]].map(([id, label]) => /*#__PURE__*/React.createElement("button", {
+    key: id,
+    onClick: () => setNutritionTab(id),
+    style: {
+      flex: 1,
+      padding: "6px 4px",
+      background: nutritionTab === id ? "#1a1a28" : "#0c0c16",
+      border: `1px solid ${nutritionTab === id ? "#2a2a3a" : "#12121e"}`,
+      color: nutritionTab === id ? "#e0e0f0" : "#3a3a5a",
+      borderRadius: 8,
+      cursor: "pointer",
+      fontSize: 10,
+      fontWeight: 700
+    }
+  }, label))), nutritionTab === "postWorkout" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "#3a3a5a",
+      marginBottom: 12,
+      letterSpacing: "0.1em",
+      textTransform: "uppercase"
+    }
+  }, "Best meals within 1hr after training"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 8
+    }
+  }, NUTRITION_DATA.postWorkout.filter(m => m.tags.includes(nutritionGoal)).map((meal, i) => /*#__PURE__*/React.createElement(MealCard, {
+    key: i,
+    meal: meal
+  })))), nutritionTab === "byGoal" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "#3a3a5a",
+      marginBottom: 12,
+      letterSpacing: "0.1em",
+      textTransform: "uppercase"
+    }
+  }, "Meals for your ", nutritionGoal, " goal"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 8
+    }
+  }, NUTRITION_DATA.byGoal[nutritionGoal].map((meal, i) => /*#__PURE__*/React.createElement(MealCard, {
+    key: i,
+    meal: meal
+  })))), nutritionTab === "byStat" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: "#3a3a5a",
+      marginBottom: 12,
+      letterSpacing: "0.1em",
+      textTransform: "uppercase"
+    }
+  }, "Nutrition tips by stat"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 10
+    }
+  }, Object.entries(NUTRITION_DATA.byStat).map(([key, data]) => {
+    const stat = STATS[key];
+    return /*#__PURE__*/React.createElement("div", {
+      key: key,
+      style: {
+        background: "#0c0c16",
+        border: `1px solid ${stat.color}20`,
+        borderRadius: 12,
+        padding: "12px 14px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 8
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 16
+      }
+    }, stat.emoji), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: stat.color
+      }
+    }, stat.label)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "#5a5a7a",
+        lineHeight: 1.6,
+        marginBottom: 8
+      }
+    }, data.tip), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 5,
+        flexWrap: "wrap"
+      }
+    }, data.foods.map((f, i) => /*#__PURE__*/React.createElement("span", {
+      key: i,
+      style: {
+        fontSize: 10,
+        background: stat.color + "15",
+        color: stat.color,
+        padding: "2px 8px",
+        borderRadius: 10,
+        fontWeight: 600
+      }
+    }, f))));
+  })))), view === "workout" && (() => {
+    const dayOfWeek = new Date().getDay(); // 0=Sun,1=Mon...6=Sat
+    const splitDay = WEEKLY_SPLIT[dayOfWeek] || WEEKLY_SPLIT[6];
+    const todayWorkouts = WORKOUTS[dayOfWeek] || WORKOUTS[6];
+    const isRestDay = dayOfWeek === 0 || dayOfWeek === 6;
+    const exercises = workoutLocation ? todayWorkouts[workoutLocation] || [] : [];
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        paddingTop: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: "#0c0c16",
+        border: `1px solid ${splitDay.color}30`,
+        borderRadius: 14,
+        padding: "16px",
+        marginBottom: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: "#3a3a5a",
+        letterSpacing: "0.15em",
+        textTransform: "uppercase",
+        marginBottom: 4
+      }
+    }, ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dayOfWeek]), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 28
+      }
+    }, splitDay.emoji), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 18,
+        fontWeight: 900,
+        color: splitDay.color
+      }
+    }, splitDay.name), !isRestDay && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "#3a3a5a",
+        marginTop: 2
+      }
+    }, "Intermediate · 5-6 exercises")))), !isRestDay && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginBottom: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: "#3a3a5a",
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
+        marginBottom: 8
+      }
+    }, "Where are you training today?"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 8
+      }
+    }, [["gym", "🏋️ Gym"], ["home", "🏠 Home"]].map(([id, label]) => /*#__PURE__*/React.createElement("button", {
+      key: id,
+      onClick: () => {
+        setWorkoutLocation(id);
+        setExpandedExercise(null);
+      },
+      style: {
+        flex: 1,
+        padding: "12px",
+        background: workoutLocation === id ? splitDay.color + "20" : "#0c0c16",
+        border: `2px solid ${workoutLocation === id ? splitDay.color : "#1a1a28"}`,
+        color: workoutLocation === id ? splitDay.color : "#3a3a5a",
+        borderRadius: 12,
+        cursor: "pointer",
+        fontSize: 13,
+        fontWeight: 800
+      }
+    }, label)))), isRestDay && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "#3a3a5a",
+        marginBottom: 14,
+        lineHeight: 1.6
+      }
+    }, "Today is an active rest day. Your muscles recover and grow during rest — don't skip it. Light movement only."), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 8
+      }
+    }, (WORKOUTS[6]?.home || []).map((ex, i) => /*#__PURE__*/React.createElement(ExerciseCard, {
+      key: i,
+      ex: ex,
+      color: "#FDA4AF",
+      expanded: expandedExercise === `rest_${i}`,
+      onToggle: () => setExpandedExercise(expandedExercise === `rest_${i}` ? null : `rest_${i}`)
+    })))), !isRestDay && workoutLocation && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: "#3a3a5a",
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
+        marginBottom: 10
+      }
+    }, exercises.length, " exercises · tap to expand"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 8
+      }
+    }, exercises.map((ex, i) => /*#__PURE__*/React.createElement(ExerciseCard, {
+      key: i,
+      ex: ex,
+      color: splitDay.color,
+      expanded: expandedExercise === i,
+      onToggle: () => setExpandedExercise(expandedExercise === i ? null : i)
+    }))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 16,
+        background: "#0c0c16",
+        borderRadius: 12,
+        padding: "12px 14px",
+        border: "1px solid #1a1a28"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        fontWeight: 700,
+        color: "#FCD34D",
+        marginBottom: 6
+      }
+    }, "💡 General Tips"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "#4a4a6a",
+        lineHeight: 1.7
+      }
+    }, /*#__PURE__*/React.createElement("div", null, "• Warm up 5-10 mins before starting"), /*#__PURE__*/React.createElement("div", null, "• Rest 60-90 sec between sets for hypertrophy"), /*#__PURE__*/React.createElement("div", null, "• Last set of each exercise should be near failure"), /*#__PURE__*/React.createElement("div", null, "• Log your weights to track progress over time")))), !isRestDay && !workoutLocation && /*#__PURE__*/React.createElement("div", {
+      style: {
+        textAlign: "center",
+        padding: "40px 0",
+        color: "#2a2a3a"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 32,
+        marginBottom: 10
+      }
+    }, splitDay.emoji), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13
+      }
+    }, "Pick a location above to see your workout.")));
+  })(), view === "streaks" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      paddingTop: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      letterSpacing: "0.15em",
+      color: "#3a3a5a",
+      textTransform: "uppercase",
+      marginBottom: 10
+    }
+  }, "Auto-tracked Habits"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 6,
+      marginBottom: 28
+    }
+  }, activeHabits.map(habit => {
+    const s = getStreak(habit.id);
+    const stat = STATS[habit.stat];
+    if (s === 0) return null;
+    return /*#__PURE__*/React.createElement("div", {
+      key: habit.id,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        background: "#0c0c16",
+        border: `1px solid ${stat.color}30`,
+        borderRadius: 11,
+        padding: "11px 14px"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 20
+      }
+    }, habit.emoji), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700
+      }
+    }, habit.name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: stat.color
+      }
+    }, stat.emoji, " ", stat.label)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        textAlign: "right"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 22,
+        fontWeight: 900,
+        color: "#F97316"
+      }
+    }, "🔥", s), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 9,
+        color: "#3a3a5a"
+      }
+    }, s === 1 ? "day" : "days")));
+  }), SYSTEM_HABITS.every(h => getStreak(h.id) === 0) && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      padding: "20px 0",
+      color: "#2a2a3a",
+      fontSize: 12
+    }
+  }, "No active streaks yet. Start checking off habits!")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      letterSpacing: "0.15em",
+      color: "#3a3a5a",
+      textTransform: "uppercase"
+    }
+  }, "Custom Streaks")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "#0c0c16",
+      border: "1px solid #1a1a28",
+      borderRadius: 12,
+      padding: "12px",
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: newStreakEmoji,
+    onChange: e => setNewStreakEmoji(e.target.value),
+    style: {
+      width: 44,
+      background: "#12121e",
+      border: "1px solid #1e1e30",
+      borderRadius: 8,
+      color: "#e0e0f0",
+      padding: "8px",
+      fontSize: 16,
+      textAlign: "center",
+      outline: "none"
+    }
+  }), /*#__PURE__*/React.createElement("input", {
+    value: newStreakName,
+    onChange: e => setNewStreakName(e.target.value),
+    onKeyDown: e => {
+      if (e.key === "Enter" && newStreakName.trim()) {
+        const days = parseInt(manualDays) || 0;
+        const id = "cs_" + Date.now();
+        const today2 = new Date();
+        const markedDays = [];
+        for (let i = 0; i < days; i++) {
+          const d = new Date(today2);
+          d.setDate(today2.getDate() - i);
+          markedDays.push(d.toISOString().slice(0, 10));
+        }
+        setCustomStreaks(prev => [...prev, {
+          id,
+          name: newStreakName.trim(),
+          emoji: newStreakEmoji,
+          days: markedDays
+        }]);
+        setNewStreakName("");
+        setManualDays("");
+        setNewStreakEmoji("🔥");
+      }
+    },
+    placeholder: "Streak name e.g. No porn, Learn French…",
+    style: {
+      flex: 1,
+      background: "#12121e",
+      border: "1px solid #1e1e30",
+      borderRadius: 8,
+      color: "#e0e0f0",
+      padding: "8px 12px",
+      fontSize: 13,
+      outline: "none"
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: manualDays,
+    onChange: e => setManualDays(e.target.value),
+    type: "number",
+    min: "0",
+    placeholder: "Starting days (0 = fresh)",
+    style: {
+      width: 160,
+      background: "#12121e",
+      border: "1px solid #1e1e30",
+      borderRadius: 8,
+      color: "#e0e0f0",
+      padding: "8px 10px",
+      fontSize: 12,
+      outline: "none"
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      if (!newStreakName.trim()) return;
+      const days = parseInt(manualDays) || 0;
+      const id = "cs_" + Date.now();
+      const today2 = new Date();
+      const markedDays = [];
+      for (let i = 0; i < days; i++) {
+        const d = new Date(today2);
+        d.setDate(today2.getDate() - i);
+        markedDays.push(d.toISOString().slice(0, 10));
+      }
+      setCustomStreaks(prev => [...prev, {
+        id,
+        name: newStreakName.trim(),
+        emoji: newStreakEmoji,
+        days: markedDays
+      }]);
+      setNewStreakName("");
+      setManualDays("");
+      setNewStreakEmoji("🔥");
+    },
+    style: {
+      flex: 1,
+      background: "#e0e0f0",
+      color: "#07070e",
+      border: "none",
+      borderRadius: 8,
+      padding: "8px",
+      cursor: "pointer",
+      fontSize: 12,
+      fontWeight: 800
+    }
+  }, "+ Add Streak"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 8
+    }
+  }, customStreaks.map(cs => {
+    const isExpanded = expandedStreak === cs.id;
+    const todayStr = today();
+    const checkedToday = cs.days.includes(todayStr);
+    // Compute current streak (consecutive days ending today or yesterday)
+    let streak = 0;
+    const sorted = [...new Set(cs.days)].sort().reverse();
+    const ref = new Date();
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(ref);
+      d.setDate(ref.getDate() - i);
+      const ds = d.toISOString().slice(0, 10);
+      if (sorted.includes(ds)) streak++;else break;
+    }
+    // Last 28 days for mini calendar
+    const last28 = [];
+    for (let i = 27; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      last28.push(d.toISOString().slice(0, 10));
+    }
+    const weeks = [];
+    for (let i = 0; i < last28.length; i += 7) weeks.push(last28.slice(i, i + 7));
+    return /*#__PURE__*/React.createElement("div", {
+      key: cs.id,
+      style: {
+        background: "#0c0c16",
+        border: `1px solid ${checkedToday ? "#F97316" : "#1a1a28"}`,
+        borderRadius: 12,
+        overflow: "hidden",
+        transition: "border-color 0.2s"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "12px 14px",
+        cursor: "pointer"
+      },
+      onClick: () => setExpandedStreak(isExpanded ? null : cs.id)
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 22
+      }
+    }, cs.emoji), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 13,
+        fontWeight: 700
+      }
+    }, cs.name), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: "#3a3a5a",
+        marginTop: 1
+      }
+    }, streak > 0 ? `${streak} day streak` : "No active streak")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        textAlign: "center",
+        marginRight: 8
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 26,
+        fontWeight: 900,
+        color: streak > 0 ? "#F97316" : "#2a2a3a",
+        lineHeight: 1
+      }
+    }, "🔥", streak)), /*#__PURE__*/React.createElement("button", {
+      onClick: e => {
+        e.stopPropagation();
+        setCustomStreaks(prev => prev.map(s => {
+          if (s.id !== cs.id) return s;
+          const days = s.days.includes(todayStr) ? s.days.filter(d => d !== todayStr) : [...s.days, todayStr];
+          return {
+            ...s,
+            days
+          };
+        }));
+      },
+      style: {
+        width: 36,
+        height: 36,
+        borderRadius: 9,
+        border: `2px solid ${checkedToday ? "#F97316" : "#F97316" + "40"}`,
+        background: checkedToday ? "#F97316" : "#14141f",
+        color: checkedToday ? "#07070e" : "transparent",
+        cursor: "pointer",
+        fontSize: 14,
+        fontWeight: 900,
+        flexShrink: 0
+      }
+    }, "✓")), isExpanded && /*#__PURE__*/React.createElement("div", {
+      style: {
+        borderTop: "1px solid #14141f",
+        padding: "12px 14px"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginBottom: 12
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: "#3a3a5a",
+        marginBottom: 6,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase"
+      }
+    }, "Last 28 days"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 3
+      }
+    }, weeks.map((week, wi) => /*#__PURE__*/React.createElement("div", {
+      key: wi,
+      style: {
+        display: "flex",
+        gap: 3
+      }
+    }, week.map(day => {
+      const hit = cs.days.includes(day);
+      const isToday = day === todayStr;
+      return /*#__PURE__*/React.createElement("button", {
+        key: day,
+        onClick: () => {
+          setCustomStreaks(prev => prev.map(s => {
+            if (s.id !== cs.id) return s;
+            const days = s.days.includes(day) ? s.days.filter(d => d !== day) : [...s.days, day];
+            return {
+              ...s,
+              days
+            };
+          }));
+        },
+        style: {
+          flex: 1,
+          aspectRatio: "1",
+          borderRadius: 5,
+          background: hit ? "#F97316" : isToday ? "#1e1e30" : "#12121e",
+          border: `1px solid ${isToday ? "#3a3a5a" : hit ? "#F97316" : "transparent"}`,
+          cursor: "pointer",
+          minWidth: 0
+        },
+        title: day
+      });
+    })))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 10,
+        marginTop: 6,
+        fontSize: 9,
+        color: "#3a3a5a"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 4
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 8,
+        height: 8,
+        borderRadius: 2,
+        background: "#F97316",
+        display: "inline-block"
+      }
+    }), " Done"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 4
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 8,
+        height: 8,
+        borderRadius: 2,
+        background: "#1e1e30",
+        border: "1px solid #3a3a5a",
+        display: "inline-block"
+      }
+    }), " Today"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 4
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 8,
+        height: 8,
+        borderRadius: 2,
+        background: "#12121e",
+        display: "inline-block"
+      }
+    }), " Missed"))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 8,
+        marginBottom: 10
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      min: "0",
+      placeholder: "Set streak manually (days)",
+      style: {
+        flex: 1,
+        background: "#12121e",
+        border: "1px solid #1e1e30",
+        borderRadius: 7,
+        color: "#e0e0f0",
+        padding: "6px 10px",
+        fontSize: 11,
+        outline: "none"
+      },
+      onKeyDown: e => {
+        if (e.key === "Enter") {
+          const n = parseInt(e.target.value) || 0;
+          const today2 = new Date();
+          const markedDays = [];
+          for (let i = 0; i < n; i++) {
+            const d = new Date(today2);
+            d.setDate(today2.getDate() - i);
+            markedDays.push(d.toISOString().slice(0, 10));
+          }
+          setCustomStreaks(prev => prev.map(s => s.id === cs.id ? {
+            ...s,
+            days: [...new Set([...s.days, ...markedDays])]
+          } : s));
+          e.target.value = "";
+        }
+      }
+    }), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setCustomStreaks(prev => prev.map(s => s.id === cs.id ? {
+        ...s,
+        days: []
+      } : s)),
+      style: {
+        background: "none",
+        border: "1px solid #2a2a3a",
+        color: "#555",
+        borderRadius: 7,
+        padding: "6px 12px",
+        cursor: "pointer",
+        fontSize: 11
+      }
+    }, "Reset"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setCustomStreaks(prev => prev.filter(s => s.id !== cs.id)),
+      style: {
+        background: "none",
+        border: "1px solid #3a1a1a",
+        color: "#F87171",
+        borderRadius: 7,
+        padding: "6px 12px",
+        cursor: "pointer",
+        fontSize: 11
+      }
+    }, "Delete"))));
+  }), customStreaks.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      padding: "30px 0",
+      color: "#2a2a3a",
+      fontSize: 12
+    }
+  }, "No custom streaks yet. Add one above."))), /*#__PURE__*/React.createElement("style", null, `*{box-sizing:border-box;} button{transition:opacity 0.1s;} button:active{opacity:0.7;} @keyframes slideDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}} @keyframes fadeIn{from{opacity:0}to{opacity:1}}`));
+}
+
+  </script>
+  <script>
+    try{const root=ReactDOM.createRoot(document.getElementById('root'));root.render(React.createElement(HabitTracker));}
+    catch(e){document.getElementById('root').innerHTML='<div style="color:#F87171;padding:20px;font-family:monospace">Error: '+e.message+'<br><small>'+e.stack+'</small></div>';console.error(e);}
+    if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+  </script>
+</body>
+</html>
